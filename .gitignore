@@ -1,0 +1,51 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+.vscode/
+
+# Flutter/Dart/Pub
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# C# exporter build output
+tools/cmt_exporter/bin/
+tools/cmt_exporter/obj/
+tools/cmt_exporter/*.cmt
+tools/cmt_exporter/test.json
+
+# Nested duplicate scaffold (optional)
+excel_comment_tool/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+**/ios/Pods/
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+
+# Symbolication
+app.*.symbols
+
+# Exceptions
+!**/ios/**/default.mode1v3
+!**/ios/**/default.mode2v3
