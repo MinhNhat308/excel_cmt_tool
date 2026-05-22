@@ -6,26 +6,33 @@ import 'package:path/path.dart' as p;
 import '../models/thesis_comment.dart';
 
 class CmtExportService {
-  static const _exeName = 'FuGrade.exe';
+  static const _exeNames = ['CmtSerialize.exe', 'FuGrade.exe'];
 
-  String? locateExporter() {
+  String? locateSerializer() {
     final candidates = <String>[];
-
     final exe = Platform.resolvedExecutable;
     final exeDir = p.dirname(exe);
-    candidates.add(p.join(exeDir, _exeName));
+    for (final name in _exeNames) {
+      candidates.add(p.join(exeDir, name));
+    }
 
     final cwd = Directory.current.path;
-    candidates.add(p.join(cwd, _exeName));
-    candidates.add(p.join(cwd, 'tools', 'cmt_exporter', 'bin', 'Release', 'net48', _exeName));
+    for (final name in _exeNames) {
+      candidates.add(p.join(cwd, name));
+      candidates.add(
+        p.join(cwd, 'tools', 'cmt_exporter', 'bin', 'Release', 'net48', name),
+      );
+    }
 
     final script = Platform.script.toFilePath();
     if (script.isNotEmpty) {
       var dir = p.dirname(script);
       for (var i = 0; i < 6; i++) {
-        candidates.add(
-          p.join(dir, 'tools', 'cmt_exporter', 'bin', 'Release', 'net48', _exeName),
-        );
+        for (final name in _exeNames) {
+          candidates.add(
+            p.join(dir, 'tools', 'cmt_exporter', 'bin', 'Release', 'net48', name),
+          );
+        }
         final parent = p.dirname(dir);
         if (parent == dir) break;
         dir = parent;
@@ -42,13 +49,9 @@ class CmtExportService {
     required ThesisComment thesis,
     required String outputPath,
   }) async {
-    final exporter = locateExporter();
-    if (exporter == null) {
-      throw StateError(
-        'Không tìm thấy $_exeName.\n'
-        'Chạy: dotnet build tools/cmt_exporter/FuGrade.csproj -c Release\n'
-        'Rồi copy FuGrade.exe vào cùng thư mục với excel_cmt_tool.exe.',
-      );
+    final serializer = locateSerializer();
+    if (serializer == null) {
+      throw StateError('Không tìm thấy CmtSerialize.exe / FuGrade.exe.');
     }
 
     final tempDir = await Directory.systemTemp.createTemp('excel_cmt_');
@@ -62,7 +65,7 @@ class CmtExportService {
       );
 
       final result = await Process.run(
-        exporter,
+        serializer,
         [jsonPath, outPath],
         runInShell: false,
       );
@@ -70,7 +73,7 @@ class CmtExportService {
       if (result.exitCode != 0) {
         final err = '${result.stderr}'.trim();
         throw StateError(
-          err.isEmpty ? 'FuGrade.exe thoát với mã ${result.exitCode}' : err,
+          err.isEmpty ? 'Xuất .cmt thất bại (mã ${result.exitCode})' : err,
         );
       }
 

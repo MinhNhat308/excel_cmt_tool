@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final name = (_fileName ?? 'nhan_xet')
         .replaceAll(RegExp(r'\.xlsx$', caseSensitive: false), '');
     final path = await FilePicker.platform.saveFile(
-      dialogTitle: ext == 'cmt' ? 'Lưu file .cmt (binary)' : 'Lưu file nhận xét',
+      dialogTitle: ext == 'cmt' ? 'Lưu file .cmt' : 'Lưu file nhận xét',
       fileName: '$name.$ext',
       type: FileType.custom,
       allowedExtensions: [ext],
@@ -111,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(
           content: Text(
             ext == 'cmt'
-                ? 'Đã xuất file .cmt (binary): $full'
+                ? 'Đã xuất file .cmt: $full'
                 : 'Đã lưu: $full',
           ),
         ),
@@ -221,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   '2) Các dòng sau: mỗi dòng 1 sinh viên (Roll + Name).\n'
                   '   Các cột còn lại dùng chung cho cả nhóm (ô merge cũng được).\n\n'
                   '3) (Tùy chọn) Phía trên header: Giảng viên, Mã môn, Lớp, Học kỳ…\n\n'
-                  'Xuất .cmt: file binary (serialize .NET), cùng kiểu file mẫu thầy gửi.',
+                  'Xuất .cmt cho FuGrade.',
                 ),
               ],
             ),

@@ -7,7 +7,7 @@ namespace FuGrade
     public class ThesisComment
     {
         public string Teacher { get; set; } = "";
-        public string DT { get; set; } = "";
+        public DateTime DT { get; set; }
         public string SubjectCode { get; set; } = "";
         public string ClassName { get; set; } = "";
         public string Semester { get; set; } = "";
@@ -19,8 +19,7 @@ namespace FuGrade
         public string Attitude { get; set; } = "";
         public string Achievement { get; set; } = "";
         public string Limitation { get; set; } = "";
-        public string Conclusion { get; set; } = "";
-        public List<ThesisStudent> Students { get; set; } = new List<ThesisStudent>();
+        public List<ThesisStudent> Conclusion { get; set; } = new List<ThesisStudent>();
     }
 
     [Serializable]

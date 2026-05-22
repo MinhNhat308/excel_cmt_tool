@@ -33,6 +33,9 @@ tools/cmt_exporter/bin/
 tools/cmt_exporter/obj/
 tools/cmt_exporter/*.cmt
 tools/cmt_exporter/test.json
+tools/fugrade_decompiled/
+tools/fg_probe/
+tools/fg_sample_decrypted.json
 
 # Nested duplicate scaffold (optional)
 excel_comment_tool/

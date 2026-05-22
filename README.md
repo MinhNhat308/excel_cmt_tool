@@ -1,5 +1,9 @@
 # excel_cmt_tool
 
-Đọc Excel nhóm khóa luận (Roll, Name + trường chung), xuất file `.cmt` binary.
+Flutter app: import roster (.fg / Excel), Google Sheet, export `.cmt` for FuGrade.
 
-Xem `HUONG_DAN.txt` để build và chạy trên Windows.
+```bash
+flutter pub get
+dotnet build tools/cmt_exporter/FuGrade.csproj -c Release
+flutter run -d windows
+```

@@ -50,7 +50,7 @@ void main() {
     final bytes = excel.encode()!;
     final res = service.decodeBytes(bytes);
 
-    expect(res.error, isNull, reason: res.error);
+    expect(res.error, isNull);
     expect(res.thesis, isNotNull);
     expect(res.thesis!.students.length, 2);
     expect(res.thesis!.titleVn, 'AB');
