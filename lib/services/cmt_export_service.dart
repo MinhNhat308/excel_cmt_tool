@@ -57,8 +57,15 @@ class CmtExportService {
     final outPath = p.join(tempDir.path, 'out.cmt');
 
     try {
+      final exportData = thesis.toExportJson();
+      final rawPassword = exportData['password'] as String? ?? '';
+      final cleanPassword = rawPassword.isEmpty ? '1' : rawPassword;
+      final isAlreadyMd5 = cleanPassword.length == 32 && RegExp(r'^[a-fA-F0-9]{32}$').hasMatch(cleanPassword);
+      final finalHash = isAlreadyMd5 ? cleanPassword : md5.convert(utf8.encode(cleanPassword)).toString();
+      exportData['password'] = finalHash;
+
       await File(jsonPath).writeAsString(
-        jsonEncode(thesis.toExportJson()),
+        jsonEncode(exportData),
         encoding: utf8,
       );
 
