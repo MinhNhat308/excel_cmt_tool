@@ -133,7 +133,12 @@ class CmtExportService {
       final matchesPlainText = inputPassword == expectedHash;
 
       if (expectedHash.isNotEmpty && !matchesMd5 && !matchesPlainText) {
-        throw ArgumentError('Mật khẩu không chính xác');
+        throw ArgumentError(
+          'Mật khẩu không chính xác.\n'
+          '  - Mật khẩu lưu trong file: "$expectedHash"\n'
+          '  - Mật khẩu bạn vừa nhập: "$inputPassword"\n'
+          '  - MD5 của mật khẩu bạn nhập: "$inputHash"'
+        );
       }
 
       final studentsData = data['students'] as List<dynamic>? ?? [];

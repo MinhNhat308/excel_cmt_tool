@@ -30,6 +30,7 @@ class _ImportXlsxScreenState extends ConsumerState<ImportXlsxScreen> {
   List<SurveyRow> _parsedRows = [];
   String? _parseError;
   bool _isProcessing = false;
+  final _previewScrollController = ScrollController();
 
   @override
   void dispose() {
@@ -38,6 +39,7 @@ class _ImportXlsxScreenState extends ConsumerState<ImportXlsxScreen> {
     _subjectController.dispose();
     _classController.dispose();
     _masterKeyController.dispose();
+    _previewScrollController.dispose();
     super.dispose();
   }
 
@@ -395,9 +397,11 @@ class _ImportXlsxScreenState extends ConsumerState<ImportXlsxScreen> {
                                     height: 400,
                                     width: double.infinity,
                                     child: Scrollbar(
+                                      controller: _previewScrollController,
                                       thumbVisibility: true,
                                       trackVisibility: true,
                                       child: SingleChildScrollView(
+                                        controller: _previewScrollController,
                                         scrollDirection: Axis.vertical,
                                         child: SingleChildScrollView(
                                           scrollDirection: Axis.horizontal,
