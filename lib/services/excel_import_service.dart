@@ -1,4 +1,4 @@
-import 'package:excel/excel.dart';
+import 'package:excel_plus/excel_plus.dart';
 
 import '../models/de_tai_meta.dart';
 import '../models/thesis_comment.dart';

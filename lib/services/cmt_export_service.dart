@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/thesis_comment.dart';
@@ -76,6 +77,85 @@ class CmtExportService {
 
       final bytes = await File(outPath).readAsBytes();
       await File(outputPath).writeAsBytes(bytes, flush: true);
+    } finally {
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    }
+  }
+
+  Future<ThesisComment> importFromFile({
+    required String inputPath,
+    required String password,
+  }) async {
+    final exporter = locateExporter();
+    if (exporter == null) {
+      throw StateError(
+        'Không tìm thấy $_exeName.\n'
+        'Chạy: dotnet build tools/cmt_exporter/FuGrade.csproj -c Release\n'
+        'Rồi copy FuGrade.exe vào cùng thư mục với excel_cmt_tool.exe.',
+      );
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp('excel_cmt_import_');
+    final jsonPath = p.join(tempDir.path, 'import.json');
+
+    try {
+      final result = await Process.run(
+        exporter,
+        [inputPath, jsonPath],
+        runInShell: false,
+      );
+
+      if (result.exitCode != 0) {
+        final err = '${result.stderr}'.trim();
+        throw StateError(
+          err.isEmpty ? 'FuGrade.exe thoát với mã ${result.exitCode}' : err,
+        );
+      }
+
+      final jsonStr = await File(jsonPath).readAsString(encoding: utf8);
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+
+      // Verify the password hash
+      final expectedHash = data['password'] as String? ?? '';
+      final inputPassword = password.isEmpty ? '1' : password;
+      final inputHash = md5.convert(utf8.encode(inputPassword)).toString();
+
+      if (expectedHash.isNotEmpty && inputHash != expectedHash) {
+        throw ArgumentError('Mật khẩu không chính xác');
+      }
+
+      final studentsData = data['students'] as List<dynamic>? ?? [];
+      final List<ThesisStudent> students = studentsData.map((s) {
+        final Map<String, dynamic> smap = s as Map<String, dynamic>;
+        return ThesisStudent(
+          roll: smap['roll'] as String? ?? '',
+          name: smap['name'] as String? ?? '',
+          agreeToDefense: smap['agreeToDefense'] as String? ?? '',
+          revisedForSecondDefense: smap['revisedForSecondDefense'] as String? ?? '',
+          disagreeToDefense: smap['disagreeToDefense'] as String? ?? '',
+          note: smap['note'] as String? ?? '',
+        );
+      }).toList();
+
+      return ThesisComment(
+        teacher: data['teacher'] as String? ?? '',
+        dt: data['dt'] as String? ?? '',
+        subjectCode: data['subjectCode'] as String? ?? '',
+        className: data['className'] as String? ?? '',
+        semester: data['semester'] as String? ?? '',
+        password: expectedHash,
+        titleVn: data['titleVn'] as String? ?? '',
+        titleEn: data['titleEn'] as String? ?? '',
+        content: data['content'] as String? ?? '',
+        form: data['form'] as String? ?? '',
+        attitude: data['attitude'] as String? ?? '',
+        achievement: data['achievement'] as String? ?? '',
+        limitation: data['limitation'] as String? ?? '',
+        conclusion: data['conclusion'] as String? ?? '',
+        students: students,
+      );
     } finally {
       try {
         await tempDir.delete(recursive: true);

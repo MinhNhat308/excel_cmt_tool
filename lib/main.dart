@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ExcelCmtApp());
+  runApp(
+    const ProviderScope(
+      child: ExcelCmtApp(),
+    ),
+  );
 }
 
 class ExcelCmtApp extends StatelessWidget {

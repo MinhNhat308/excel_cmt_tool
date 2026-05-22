@@ -1,597 +1,279 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/de_tai_meta.dart';
-import '../models/thesis_comment.dart';
-import '../models/tieu_chi_row.dart';
-import '../services/cmt_export_service.dart';
-import '../services/excel_import_service.dart';
-import '../services/write_utf8_file.dart';
-import '../services/nhan_xet_generator.dart';
+import '../services/project_provider.dart';
 import '../theme/app_theme.dart';
+import 'import_xlsx_screen.dart';
+import 'project_list_screen.dart';
+import 'cmt_viewer_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final _excel = ExcelImportService();
-  final _generator = NhanXetGenerator();
-  final _cmtExport = CmtExportService();
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isLoading = false;
 
-  String? _fileName;
-  DeTaiMeta _meta = const DeTaiMeta();
-  ThesisComment? _thesis;
-  List<TieuChiRow> _rows = [];
-  String _report = '';
-  String? _parseError;
+  Future<void> _openFgFile() async {
+    setState(() => _isLoading = true);
 
-  Future<void> _pickExcel() async {
-    final r = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['xlsx'],
-      withData: true,
-    );
-    if (r == null || r.files.isEmpty) return;
-    final f = r.files.single;
-    final bytes = f.bytes;
-    if (bytes == null) {
-      setState(() => _parseError = 'Không đọc được nội dung file.');
-      return;
-    }
-    setState(() {
-      _fileName = f.name;
-      _parseError = null;
-    });
-    final res = _excel.decodeBytes(bytes);
-    setState(() {
-      _thesis = res.thesis;
-      _meta = res.meta;
-      _rows = res.rows;
-      _parseError = res.error;
-      if (res.error != null) {
-        _report = '';
-      } else if (res.thesis != null) {
-        _report = res.thesis!.toPreviewText();
-      } else {
-        _report = _generator.buildFullReport(meta: res.meta, rows: res.rows);
-      }
-    });
-  }
-
-  Future<void> _export(String ext) async {
-    if (ext == 'cmt') {
-      if (_thesis == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chọn file Excel nhóm khóa luận (Roll, Name) trước.'),
-          ),
-        );
+    try {
+      final r = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['fg'],
+      );
+      if (r == null || r.files.isEmpty) {
+        setState(() => _isLoading = false);
         return;
       }
-    } else if (_report.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Chưa có nội dung để xuất.')),
-      );
-      return;
-    }
-
-    if (kIsWeb) {
-      await Clipboard.setData(ClipboardData(text: _report));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Web: chỉ hỗ trợ xuất .cmt trên Windows.')),
-      );
-      return;
-    }
-
-    final name = (_fileName ?? 'nhan_xet')
-        .replaceAll(RegExp(r'\.xlsx$', caseSensitive: false), '');
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: ext == 'cmt' ? 'Lưu file .cmt (binary)' : 'Lưu file nhận xét',
-      fileName: '$name.$ext',
-      type: FileType.custom,
-      allowedExtensions: [ext],
-    );
-    if (path == null) return;
-    final full = path.toLowerCase().endsWith('.$ext') ? path : '$path.$ext';
-    try {
-      if (ext == 'cmt') {
-        await _cmtExport.exportToFile(thesis: _thesis!, outputPath: full);
-      } else {
-        await writeUtf8File(full, _report);
+      final path = r.files.single.path;
+      if (path == null) {
+        setState(() => _isLoading = false);
+        return;
       }
+
+      final success = ref.read(projectListProvider.notifier).loadFromFgFile(path);
+      setState(() => _isLoading = false);
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            ext == 'cmt'
-                ? 'Đã xuất file .cmt (binary): $full'
-                : 'Đã lưu: $full',
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã tải thành công tệp dự án (.fg)!')),
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (context) => const ProjectListScreen(),
           ),
-        ),
-      );
+        );
+      } else {
+        final error = ref.read(projectListProvider).error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error ?? 'Có lỗi xảy ra khi mở tệp .fg.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
+      setState(() => _isLoading = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi xuất file: $e')),
+        SnackBar(content: Text('Lỗi mở tệp: $e'), backgroundColor: Colors.red),
       );
     }
-  }
-
-  Future<void> _copy() async {
-    await Clipboard.setData(ClipboardData(text: _report));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã sao chép nội dung nhận xét.')),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Nhận xét đề tài từ Excel'),
-        actions: [
-          IconButton(
-            tooltip: 'Hướng dẫn',
-            onPressed: () => _showHelp(context),
-            icon: const Icon(Icons.help_outline_rounded),
-          ),
-        ],
+        title: const Text('FUGE Tool — Quản lý Đánh giá Khóa luận'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: DecoratedBox(
         decoration: AppTheme.pageGradient(context),
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _HeroCard(
-                      fileName: _fileName,
-                      onPick: _pickExcel,
-                      scheme: scheme,
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Logo / Header Section
+                        Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: scheme.primary.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.verified_user_rounded,
+                                size: 80,
+                                color: scheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'HỆ THỐNG ĐÁNH GIÁ FUGE',
+                              style: t.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                                color: scheme.primary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Công cụ hỗ trợ Giảng viên tổng hợp, nhập điểm, và xuất/đọc phiếu nhận xét khóa luận tốt nghiệp bảo mật .cmt',
+                              style: t.bodyLarge?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 48),
+
+                        // Actions Grid (Centered on Desktop)
+                        Align(
+                          alignment: Alignment.center,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 960),
+                            child: GridView.count(
+                              crossAxisCount: 3,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisSpacing: 24,
+                              mainAxisSpacing: 24,
+                              childAspectRatio: 0.95,
+                              children: [
+                                // Action 1: Import XLSX -> Create .fg
+                                _HomeActionCard(
+                                  icon: Icons.add_moderator_rounded,
+                                  title: 'Import XLSX → Tạo .fg',
+                                  description: 'Tải lên bảng khảo sát Excel để bắt đầu tạo tệp danh sách đề tài và nhóm bảo vệ tốt nghiệp mới.',
+                                  color: scheme.primary,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute<void>(
+                                        builder: (context) => const ImportXlsxScreen(),
+                                      ),
+                                    );
+                                  },
+                                  scheme: scheme,
+                                  t: t,
+                                ),
+
+                                // Action 2: Open .fg project
+                                _HomeActionCard(
+                                  icon: Icons.folder_shared_rounded,
+                                  title: 'Mở file dự án .fg',
+                                  description: 'Tiếp tục chỉnh sửa bảng điểm, đồng bộ khảo sát sinh viên, điền nhận xét và xuất các file đánh giá.',
+                                  color: scheme.secondary,
+                                  onTap: _openFgFile,
+                                  scheme: scheme,
+                                  t: t,
+                                ),
+
+                                // Action 3: Open .cmt comment
+                                _HomeActionCard(
+                                  icon: Icons.lock_open_rounded,
+                                  title: 'Mở file nhận xét .cmt',
+                                  description: 'Giải mã tệp nhị phân .cmt để đọc trực quan phiếu đánh giá khóa luận tốt nghiệp của từng đề tài.',
+                                  color: scheme.tertiary,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute<void>(
+                                        builder: (context) => const CmtViewerScreen(),
+                                      ),
+                                    );
+                                  },
+                                  scheme: scheme,
+                                  t: t,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 60),
+
+                        // Footer versioning info
+                        Text(
+                          'Phiên bản 1.0.0 — Phát triển bởi Antigravity',
+                          style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant.withOpacity(0.5)),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    if (_parseError != null)
-                      _ErrorBanner(message: _parseError!)
-                    else if (_thesis != null) ...[
-                      _ThesisPreviewCard(thesis: _thesis!, scheme: scheme),
-                      const SizedBox(height: 16),
-                    ] else if (_rows.isNotEmpty) ...[
-                      _MetaCard(meta: _meta, scheme: scheme),
-                      const SizedBox(height: 16),
-                      _PreviewCard(rows: _rows, scheme: scheme),
-                      const SizedBox(height: 16),
-                    ],
-                    _ReportCard(
-                      text: _report,
-                      scheme: scheme,
-                      onCopy: _copy,
-                      onExportCmt: () => _export('cmt'),
-                      onExportTxt: () => _export('txt'),
-                    ),
-                  ]),
+                  ),
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
   }
-
-  void _showHelp(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            bottom: MediaQuery.paddingOf(ctx).bottom + 24,
-            top: 8,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Định dạng Excel gợi ý',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Định dạng nhóm khóa luận:\n\n'
-                  '1) Dòng tiêu đề gồm: Roll, Name, Tên KL (VN/EN), Nội dung, '
-                  'Hình thức, Thái độ, Mức độ đạt, Hạn chế…\n\n'
-                  '2) Các dòng sau: mỗi dòng 1 sinh viên (Roll + Name).\n'
-                  '   Các cột còn lại dùng chung cho cả nhóm (ô merge cũng được).\n\n'
-                  '3) (Tùy chọn) Phía trên header: Giảng viên, Mã môn, Lớp, Học kỳ…\n\n'
-                  'Xuất .cmt: file binary (serialize .NET), cùng kiểu file mẫu thầy gửi.',
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({
-    required this.fileName,
-    required this.onPick,
+class _HomeActionCard extends StatelessWidget {
+  const _HomeActionCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.onTap,
     required this.scheme,
+    required this.t,
   });
 
-  final String? fileName;
-  final VoidCallback onPick;
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
   final ColorScheme scheme;
+  final TextTheme t;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.table_chart_rounded, color: scheme.primary, size: 36),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Đọc Excel nhóm KL → xuất .cmt',
-                        style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Chọn file Excel nhóm khóa luận (Roll, Name + trường chung).',
-                        style: t.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+      elevation: 4,
+      shadowColor: scheme.shadow.withOpacity(0.05),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: onPick,
-              icon: const Icon(Icons.upload_file_rounded),
-              label: const Text('Chọn file Excel (.xlsx)'),
-            ),
-            if (fileName != null) ...[
-              const SizedBox(height: 12),
+                child: Icon(icon, size: 40, color: color),
+              ),
+              const SizedBox(height: 20),
               Text(
-                'Đang mở: $fileName',
-                style: t.bodySmall?.copyWith(color: scheme.primary),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: scheme.errorContainer.withOpacity(0.9),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.error_outline_rounded, color: scheme.error),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(color: scheme.onErrorContainer),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ThesisPreviewCard extends StatelessWidget {
-  const _ThesisPreviewCard({required this.thesis, required this.scheme});
-
-  final ThesisComment thesis;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    final shared = <String>[
-      if (thesis.titleVn.isNotEmpty) 'Tên VN: ${thesis.titleVn}',
-      if (thesis.titleEn.isNotEmpty) 'Tên EN: ${thesis.titleEn}',
-      if (thesis.content.isNotEmpty) 'Nội dung: ${thesis.content}',
-      if (thesis.form.isNotEmpty) 'Hình thức: ${thesis.form}',
-      if (thesis.attitude.isNotEmpty) 'Thái độ: ${thesis.attitude}',
-      if (thesis.achievement.isNotEmpty) 'Mức độ đạt: ${thesis.achievement}',
-      if (thesis.limitation.isNotEmpty) 'Hạn chế: ${thesis.limitation}',
-    ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.groups_rounded, color: scheme.primary),
-                const SizedBox(width: 10),
-                Text(
-                  'Nhóm ${thesis.students.length} sinh viên',
-                  style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                title,
+                style: t.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: scheme.onSurface,
                 ),
-              ],
-            ),
-            if (shared.isNotEmpty) ...[
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 12),
-              ...shared.map(
-                (line) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(line),
+              Expanded(
+                child: Text(
+                  description,
+                  style: t.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            ...thesis.students.map(
-              (s) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text('• ${s.roll} — ${s.name}'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MetaCard extends StatelessWidget {
-  const _MetaCard({required this.meta, required this.scheme});
-
-  final DeTaiMeta meta;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!meta.hasAny) return const SizedBox.shrink();
-    final lines = <String>[];
-    if (meta.tenDeTai.isNotEmpty) lines.add('Đề tài: ${meta.tenDeTai}');
-    if (meta.tenSinhVien.isNotEmpty) lines.add('Sinh viên: ${meta.tenSinhVien}');
-    if (meta.maLop.isNotEmpty) lines.add('Lớp: ${meta.maLop}');
-    if (meta.nguoiDanhGia.isNotEmpty) {
-      lines.add('Người đánh giá: ${meta.nguoiDanhGia}');
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.info_outline_rounded, color: scheme.secondary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Thông tin đề tài',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...lines.map((e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(e),
-                      )),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PreviewCard extends StatelessWidget {
-  const _PreviewCard({required this.rows, required this.scheme});
-
-  final List<TieuChiRow> rows;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.fact_check_rounded, color: scheme.primary),
-                const SizedBox(width: 10),
-                Text(
-                  'Xem trước (${rows.length} tiêu chí)',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...rows.take(8).map((r) => _PreviewRow(row: r)),
-            if (rows.length > 8)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '… và ${rows.length - 8} tiêu chí khác',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PreviewRow extends StatelessWidget {
-  const _PreviewRow({required this.row});
-
-  final TieuChiRow row;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final diem = row.diem != null ? ' · ${row.diem!.toStringAsFixed(1)}đ' : '';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.only(top: 6, right: 10),
-            decoration: BoxDecoration(
-              color: scheme.primary,
-              shape: BoxShape.circle,
-            ),
           ),
-          Expanded(
-            child: Text(
-              '${row.tieuChi.isEmpty ? '(Chưa đặt tên)' : row.tieuChi}$diem',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportCard extends StatelessWidget {
-  const _ReportCard({
-    required this.text,
-    required this.scheme,
-    required this.onCopy,
-    required this.onExportCmt,
-    required this.onExportTxt,
-  });
-
-  final String text;
-  final ColorScheme scheme;
-  final VoidCallback onCopy;
-  final VoidCallback onExportCmt;
-  final VoidCallback onExportTxt;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.article_outlined, color: scheme.tertiary),
-                const SizedBox(width: 10),
-                Text(
-                  'Nhận xét sinh ra',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: scheme.outlineVariant),
-                color: scheme.surface.withOpacity(0.85),
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 220, maxHeight: 420),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: SelectableText(
-                    text.isEmpty
-                        ? 'Chưa có nội dung. Hãy chọn file Excel hợp lệ.'
-                        : text,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          height: 1.45,
-                        ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: text.isEmpty ? null : onCopy,
-                  icon: const Icon(Icons.copy_rounded),
-                  label: const Text('Sao chép'),
-                ),
-                FilledButton.icon(
-                  onPressed: text.isEmpty ? null : onExportCmt,
-                  icon: const Icon(Icons.save_alt_rounded),
-                  label: const Text('Xuất .cmt'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: text.isEmpty ? null : onExportTxt,
-                  icon: const Icon(Icons.description_outlined),
-                  label: const Text('Xuất .txt'),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );
