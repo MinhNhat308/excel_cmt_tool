@@ -124,12 +124,15 @@ class CmtExportService {
       final jsonStr = await File(jsonPath).readAsString(encoding: utf8);
       final Map<String, dynamic> data = jsonDecode(jsonStr);
 
-      // Verify the password hash
+      // Verify the password hash (supports both MD5 and plain text for backward compatibility)
       final expectedHash = data['password'] as String? ?? '';
       final inputPassword = password.isEmpty ? '1' : password;
       final inputHash = md5.convert(utf8.encode(inputPassword)).toString();
 
-      if (expectedHash.isNotEmpty && inputHash != expectedHash) {
+      final matchesMd5 = inputHash == expectedHash;
+      final matchesPlainText = inputPassword == expectedHash;
+
+      if (expectedHash.isNotEmpty && !matchesMd5 && !matchesPlainText) {
         throw ArgumentError('Mật khẩu không chính xác');
       }
 
