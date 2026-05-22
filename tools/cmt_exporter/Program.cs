@@ -15,34 +15,61 @@ namespace FuGrade
             {
                 if (args.Length < 2)
                 {
-                    Console.Error.WriteLine("Usage: FuGrade.exe <input.json> <output.cmt>");
+                    Console.Error.WriteLine("Usage:\n  Export: FuGrade.exe <input.json> <output.cmt>\n  Import: FuGrade.exe <input.cmt> <output.json>");
                     return 1;
                 }
 
-                var jsonPath = args[0];
-                var outPath = args[1];
-                var json = File.ReadAllText(jsonPath, Encoding.UTF8);
-                var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
-                var dto = serializer.Deserialize<ExportDto>(json);
-                if (dto == null)
-                {
-                    Console.Error.WriteLine("Invalid JSON.");
-                    return 2;
-                }
+                var inputPath = args[0];
+                var outputPath = args[1];
 
-                var comment = Map(dto);
-                if (string.IsNullOrWhiteSpace(comment.Password))
+                if (inputPath.EndsWith(".cmt", StringComparison.OrdinalIgnoreCase) || outputPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 {
-                    comment.Password = Md5Hex("1");
-                }
+                    // Import Mode: CMT to JSON
+                    if (!File.Exists(inputPath))
+                    {
+                        Console.Error.WriteLine("Input CMT file does not exist.");
+                        return 3;
+                    }
 
-                var formatter = new BinaryFormatter();
-                using (var stream = File.Create(outPath))
+                    var formatter = new BinaryFormatter();
+                    ThesisComment comment;
+                    using (var stream = File.OpenRead(inputPath))
+                    {
+                        comment = (ThesisComment)formatter.Deserialize(stream);
+                    }
+
+                    var dto = MapBack(comment);
+                    var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                    var json = serializer.Serialize(dto);
+                    File.WriteAllText(outputPath, json, Encoding.UTF8);
+                    return 0;
+                }
+                else
                 {
-                    formatter.Serialize(stream, comment);
-                }
+                    // Export Mode: JSON to CMT
+                    var json = File.ReadAllText(inputPath, Encoding.UTF8);
+                    var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+                    var dto = serializer.Deserialize<ExportDto>(json);
+                    if (dto == null)
+                    {
+                        Console.Error.WriteLine("Invalid JSON.");
+                        return 2;
+                    }
 
-                return 0;
+                    var comment = Map(dto);
+                    if (string.IsNullOrWhiteSpace(comment.Password))
+                    {
+                        comment.Password = Md5Hex("1");
+                    }
+
+                    var formatter = new BinaryFormatter();
+                    using (var stream = File.Create(outputPath))
+                    {
+                        formatter.Serialize(stream, comment);
+                    }
+
+                    return 0;
+                }
             }
             catch (Exception ex)
             {
@@ -70,10 +97,11 @@ namespace FuGrade
                 }
             }
 
+            DateTime dtVal;
             return new ThesisComment
             {
                 Teacher = dto.teacher ?? "",
-                DT = dto.dt ?? "",
+                DT = DateTime.TryParse(dto.dt, out dtVal) ? dtVal : DateTime.Now,
                 SubjectCode = dto.subjectCode ?? "",
                 ClassName = dto.className ?? "",
                 Semester = dto.semester ?? "",
@@ -85,8 +113,46 @@ namespace FuGrade
                 Attitude = dto.attitude ?? "",
                 Achievement = dto.achievement ?? "",
                 Limitation = dto.limitation ?? "",
-                Conclusion = dto.conclusion ?? "",
-                Students = students,
+                Conclusion = students,
+            };
+        }
+
+        private static ExportDto MapBack(ThesisComment comment)
+        {
+            var students = new System.Collections.Generic.List<StudentDto>();
+            if (comment.Conclusion != null)
+            {
+                foreach (var s in comment.Conclusion)
+                {
+                    students.Add(new StudentDto
+                    {
+                        roll = s.Roll ?? "",
+                        name = s.Name ?? "",
+                        agreeToDefense = s.Agree_to_defense ?? "",
+                        revisedForSecondDefense = s.Revised_for_the_second_defense ?? "",
+                        disagreeToDefense = s.Disagree_to_defense ?? "",
+                        note = s.Note ?? "",
+                    });
+                }
+            }
+
+            return new ExportDto
+            {
+                teacher = comment.Teacher ?? "",
+                dt = comment.DT.ToString("yyyy-MM-dd HH:mm:ss"),
+                subjectCode = comment.SubjectCode ?? "",
+                className = comment.ClassName ?? "",
+                semester = comment.Semester ?? "",
+                password = comment.Password ?? "",
+                titleVn = comment.TitleVN ?? "",
+                titleEn = comment.TitleEN ?? "",
+                content = comment.Content ?? "",
+                form = comment.Form ?? "",
+                attitude = comment.Attitude ?? "",
+                achievement = comment.Achievement ?? "",
+                limitation = comment.Limitation ?? "",
+                conclusion = "",
+                students = students.ToArray(),
             };
         }
 

@@ -10,10 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  excel: ^4.0.6
+  excel_plus: ^0.0.3
   file_picker: ^8.1.4
   google_fonts: ^6.2.1
   path: ^1.9.0
+  flutter_riverpod: ^2.5.1
+  archive: ^4.0.9
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
