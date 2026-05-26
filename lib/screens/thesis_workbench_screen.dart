@@ -520,7 +520,7 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
   }
 }
 
-class _ImportPanel extends StatelessWidget {
+class _ImportPanel extends StatefulWidget {
   const _ImportPanel({
     required this.sheetUrlCtrl,
     required this.fgFileName,
@@ -546,9 +546,30 @@ class _ImportPanel extends StatelessWidget {
   final bool sheetLoading;
 
   @override
+  State<_ImportPanel> createState() => _ImportPanelState();
+}
+
+class _ImportPanelState extends State<_ImportPanel> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.bundle == null || !widget.bundle!.isReady;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImportPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.bundle?.isReady == true && oldWidget.bundle?.isReady != true) {
+      _isExpanded = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final ready = bundle?.isReady ?? false;
+    final ready = widget.bundle?.isReady ?? false;
     return DecoratedBox(
       decoration: AppTheme.glassCard(context),
       child: Padding(
@@ -566,85 +587,102 @@ class _ImportPanel extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                FilledButton.icon(
-                  onPressed: onImportFg,
-                  icon: const Icon(Icons.folder_shared_rounded, size: 20),
-                  label: const Text('Roster (.fg)'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onImportSheetFile,
-                  icon: const Icon(Icons.table_chart_rounded, size: 20),
-                  label: const Text('Sheet file'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onImportCmt,
-                  icon: const Icon(Icons.upload_file_rounded, size: 20),
-                  label: const Text('Import .cmt'),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(_isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded),
+                  onPressed: () => setState(() => _isExpanded = !_isExpanded),
+                  tooltip: _isExpanded ? 'Thu gọn' : 'Mở rộng',
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: sheetUrlCtrl,
-              decoration: InputDecoration(
-                labelText: 'Link Google Sheet',
-                hintText: 'https://docs.google.com/spreadsheets/d/...',
-                prefixIcon: Icon(Icons.link_rounded, color: scheme.primary),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 10),
-            FilledButton.tonalIcon(
-              onPressed: sheetLoading ? null : onImportSheetUrl,
-              icon: sheetLoading
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: scheme.primary,
+            AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity, height: 0),
+              secondChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: widget.onImportFg,
+                        icon: const Icon(Icons.folder_shared_rounded, size: 20),
+                        label: const Text('Roster (.fg)'),
                       ),
-                    )
-                  : const Icon(Icons.sync_rounded),
-              label: Text(sheetLoading ? 'Đang tải sheet...' : 'Tải / tải lại Sheet'),
+                      OutlinedButton.icon(
+                        onPressed: widget.onImportSheetFile,
+                        icon: const Icon(Icons.table_chart_rounded, size: 20),
+                        label: const Text('Sheet file'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: widget.onImportCmt,
+                        icon: const Icon(Icons.upload_file_rounded, size: 20),
+                        label: const Text('Import .cmt'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: widget.sheetUrlCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Link Google Sheet',
+                      hintText: 'https://docs.google.com/spreadsheets/d/...',
+                      prefixIcon: Icon(Icons.link_rounded, color: scheme.primary),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.tonalIcon(
+                    onPressed: widget.sheetLoading ? null : widget.onImportSheetUrl,
+                    icon: widget.sheetLoading
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.primary,
+                            ),
+                          )
+                        : const Icon(Icons.sync_rounded),
+                    label: Text(widget.sheetLoading ? 'Đang tải sheet...' : 'Tải / tải lại Sheet'),
+                  ),
+                ],
+              ),
+              crossFadeState: _isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 300),
             ),
-            if (fgFileName != null || sheetLabel != null || bundle?.roster != null) ...[
+            if (widget.fgFileName != null || widget.sheetLabel != null || widget.bundle?.roster != null) ...[
               const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  if (fgFileName != null)
+                  if (widget.fgFileName != null)
                     _InfoChip(
                       icon: Icons.badge_rounded,
-                      label: 'FG: $fgFileName',
+                      label: 'FG: ${widget.fgFileName}',
                       color: scheme.primaryContainer,
                     ),
-                  if (sheetLabel != null)
+                  if (widget.sheetLabel != null)
                     _InfoChip(
                       icon: Icons.grid_on_rounded,
-                      label: sheetLabel!,
+                      label: widget.sheetLabel!,
                       color: scheme.secondaryContainer,
                     ),
-                  if (bundle?.roster != null)
+                  if (widget.bundle?.roster != null)
                     _InfoChip(
                       icon: Icons.people_rounded,
                       label:
-                          '${bundle!.roster!.students.length} SV · ${bundle!.topics.length} đề tài'
-                          '${ready ? " · ${bundle!.matchedTopicCount} ghép" : ""}',
+                          '${widget.bundle!.roster!.students.length} SV · ${widget.bundle!.topics.length} đề tài'
+                          '${ready ? " · ${widget.bundle!.matchedTopicCount} ghép" : ""}',
                       color: scheme.tertiaryContainer,
                     ),
                 ],
               ),
             ],
-            if (status != null) ...[
+            if (widget.status != null) ...[
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
@@ -654,7 +692,7 @@ class _ImportPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  status!,
+                  widget.status!,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                         height: 1.45,

@@ -99,10 +99,9 @@ class AppTheme {
         colors: [
           c.primary.withOpacity(0.08),
           c.secondary.withOpacity(0.06),
-          c.tertiary.withOpacity(0.04),
           c.surface,
         ],
-        stops: const [0.0, 0.35, 0.65, 1.0],
+        stops: const [0.0, 0.4, 1.0],
       ),
     );
   }
