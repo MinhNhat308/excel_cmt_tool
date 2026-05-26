@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/project_provider.dart';
 import '../theme/app_theme.dart';
-import 'import_xlsx_screen.dart';
 import 'project_list_screen.dart';
 import 'cmt_viewer_screen.dart';
 
@@ -169,45 +168,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         Align(
                           alignment: Alignment.center,
                           child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 960),
+                            constraints: const BoxConstraints(maxWidth: 720),
                             child: GridView.count(
-                              crossAxisCount: 3,
+                              crossAxisCount: 2,
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               crossAxisSpacing: 24,
                               mainAxisSpacing: 24,
                               childAspectRatio: 0.95,
                               children: [
-                                // Action 1: Import XLSX -> Create .fg
-                                _HomeActionCard(
-                                  icon: Icons.add_moderator_rounded,
-                                  title: 'Import XLSX → Tạo .fg',
-                                  description: 'Tải lên bảng khảo sát Excel để bắt đầu tạo tệp danh sách đề tài và nhóm bảo vệ tốt nghiệp mới.',
-                                  color: scheme.primary,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute<void>(
-                                        builder: (context) => const ImportXlsxScreen(),
-                                      ),
-                                    );
-                                  },
-                                  scheme: scheme,
-                                  t: t,
-                                ),
-
-                                // Action 2: Open .fg project
+                                // Action 1: Open .fg project
                                 _HomeActionCard(
                                   icon: Icons.folder_shared_rounded,
                                   title: 'Mở file dự án .fg',
-                                  description: 'Tiếp tục chỉnh sửa bảng điểm, đồng bộ khảo sát sinh viên, điền nhận xét và xuất các file đánh giá.',
+                                  description: 'Tải dữ liệu danh sách nhóm sinh viên từ file .fg gốc để bắt đầu ghép đề tài và nhập điểm đánh giá.',
                                   color: scheme.secondary,
                                   onTap: _openFgFile,
                                   scheme: scheme,
                                   t: t,
                                 ),
 
-                                // Action 3: Open .cmt comment
+                                // Action 2: Open .cmt comment
                                 _HomeActionCard(
                                   icon: Icons.lock_open_rounded,
                                   title: 'Mở file nhận xét .cmt',

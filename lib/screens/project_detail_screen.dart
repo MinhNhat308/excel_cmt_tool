@@ -420,7 +420,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                       selectedTileColor: scheme.primaryContainer.withOpacity(0.4),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       title: Text('${s.roll} — ${s.name}'),
-                                      subtitle: Text(s.email.isNotEmpty ? s.email : 'Chưa nhập email'),
+                                      subtitle: s.email.isNotEmpty ? Text(s.email) : null,
                                       onTap: () => setState(() => _selectedStudentIndex = i),
                                       leading: CircleAvatar(
                                         backgroundColor: isSelected ? scheme.primary : scheme.surfaceContainerHighest,
@@ -504,7 +504,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _contentController,
                                 maxLines: 4,
                                 decoration: const InputDecoration(
-                                  labelText: '1. Nội dung đánh giá',
+                                  labelText: '3.1 Nội dung khóa luận',
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -514,7 +514,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _formController,
                                 maxLines: 3,
                                 decoration: const InputDecoration(
-                                  labelText: '2. Hình thức trình bày',
+                                  labelText: '3.2 Hình thức thảo luận',
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -524,7 +524,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _attitudeController,
                                 maxLines: 3,
                                 decoration: const InputDecoration(
-                                  labelText: '3. Thái độ làm việc',
+                                  labelText: '3.3 Thái độ của sinh viên',
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -533,7 +533,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                               TextField(
                                 controller: _achievementController,
                                 decoration: const InputDecoration(
-                                  labelText: '4. Kết quả đạt được (ví dụ: Đạt mức tương đối)',
+                                  labelText: '4.1 Đạt ở mức nào? / Nhận xét',
                                   prefixIcon: Icon(Icons.verified_outlined),
                                 ),
                               ),
@@ -543,7 +543,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _limitationController,
                                 maxLines: 3,
                                 decoration: const InputDecoration(
-                                  labelText: '5. Hạn chế',
+                                  labelText: '4.2 Hạn chế',
                                   alignLabelWithHint: true,
                                 ),
                               ),

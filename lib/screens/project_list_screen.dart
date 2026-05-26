@@ -141,7 +141,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
 
               // Bottom Actions Bar
               _BottomActionsBar(
-                onImportSurveys: _importStudentSurveys,
+                onImportSurveys: _showImportDialog,
                 onExportAllCmt: () => _exportAllCmt(state),
                 projectsCount: state.projects.length,
                 scheme: scheme,
@@ -154,26 +154,124 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     );
   }
 
-  // Import Student Surveys
-  Future<void> _importStudentSurveys() async {
+  // Import Dialog
+  Future<void> _showImportDialog() async {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Nhập thông tin đề tài'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _importFromLocalExcel();
+                },
+                icon: const Icon(Icons.upload_file_rounded),
+                label: const Text('Chọn file Excel (.xlsx) từ máy'),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: Text('HOẶC', style: TextStyle(fontWeight: FontWeight.bold))),
+              ),
+              TextField(
+                controller: ctrl,
+                decoration: const InputDecoration(
+                  labelText: 'Link Google Sheet công khai',
+                  hintText: 'https://docs.google.com/spreadsheets/d/...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  if (ctrl.text.trim().isNotEmpty) {
+                    Navigator.pop(ctx);
+                    _importFromGoogleSheet(ctrl.text.trim());
+                  }
+                },
+                icon: const Icon(Icons.cloud_download_rounded),
+                label: const Text('Tải từ Google Sheet'),
+              ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('HỦY BỎ'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _importFromLocalExcel() async {
     final r = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['xlsx'],
       withData: true,
     );
-
     if (r == null || r.files.isEmpty) return;
-
     final bytes = r.files.single.bytes;
     if (bytes == null) return;
+    _processExcelBytes(bytes);
+  }
 
+  Future<void> _importFromGoogleSheet(String link) async {
+    final regex = RegExp(r'/spreadsheets/d/([a-zA-Z0-9-_]+)');
+    final match = regex.firstMatch(link);
+    if (match == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link Google Sheet không hợp lệ.')));
+      return;
+    }
+    final sheetId = match.group(1);
+    final url = 'https://docs.google.com/spreadsheets/d/$sheetId/export?format=xlsx';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final request = await HttpClient().getUrl(Uri.parse(url));
+      final response = await request.close();
+      final builder = BytesBuilder();
+      await for (var data in response) {
+        builder.add(data);
+      }
+      final bytes = builder.takeBytes();
+      
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      if (response.statusCode == 200 && bytes.isNotEmpty) {
+        _processExcelBytes(bytes);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không thể tải file. Hãy đảm bảo Google Sheet đã được Bật chia sẻ "Bất kỳ ai có liên kết".')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi mạng: $e')));
+    }
+  }
+
+  void _processExcelBytes(List<int> bytes) {
     final result = _surveyImport.parseBytes(bytes);
     if (result.error != null) {
-      if (!mounted) return;
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Lỗi nhập Excel'),
+          title: const Text('Lỗi phân tích Excel'),
           content: Text(result.error!),
           actions: [
             TextButton(
@@ -185,13 +283,9 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
       );
       return;
     }
-
     ref.read(projectListProvider.notifier).importStudentSurveys(result.rows);
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã đối sánh và cập nhật nhận xét từ khảo sát của ${result.rows.length} sinh viên!'),
-      ),
+      SnackBar(content: Text('Đã đối sánh và cập nhật dữ liệu của ${result.rows.length} sinh viên!')),
     );
   }
 
@@ -459,23 +553,31 @@ class _MetaItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18, color: scheme.primary),
-        const SizedBox(width: 6),
-        Text(
-          '$label: ',
-          style: t.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: scheme.onSurfaceVariant),
-        ),
-        Text(
-          value.isNotEmpty ? value : '(Chưa điền)',
-          style: t.bodyMedium?.copyWith(
-            color: value.isNotEmpty ? scheme.onSurface : scheme.onSurfaceVariant.withOpacity(0.5),
-            fontStyle: value.isEmpty ? FontStyle.italic : null,
+    return Text.rich(
+      TextSpan(
+        children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(icon, size: 18, color: scheme.primary),
+            ),
           ),
-        ),
-      ],
+          TextSpan(
+            text: '$label: ',
+            style: t.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: scheme.onSurfaceVariant),
+          ),
+          TextSpan(
+            text: value.isNotEmpty ? value : '(Chưa điền)',
+            style: t.bodyMedium?.copyWith(
+              color: value.isNotEmpty ? scheme.onSurface : scheme.onSurfaceVariant.withOpacity(0.5),
+              fontStyle: value.isEmpty ? FontStyle.italic : null,
+            ),
+          ),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -570,8 +672,8 @@ class _ProjectGridCard extends StatelessWidget {
         statusLabel = 'Trùng SV';
         break;
       case 'TOPIC_CONFLICT':
-        statusColor = Colors.deepPurple;
-        statusLabel = 'Xung đột đề tài';
+        statusColor = Colors.orange;
+        statusLabel = 'Chưa có đề tài';
         break;
       case 'MISSING_DATA':
       default:
@@ -599,20 +701,25 @@ class _ProjectGridCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: scheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      project.groupCode.isNotEmpty ? project.groupCode : 'GROUP_UNKNOWN',
-                      style: t.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: scheme.onSecondaryContainer,
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: scheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        project.groupCode.isNotEmpty ? project.groupCode : 'GROUP_UNKNOWN',
+                        style: t.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -637,15 +744,31 @@ class _ProjectGridCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Expanded(
-                child: Text(
-                  project.titleVn,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    height: 1.25,
-                  ),
-                ),
+                child: project.titleVn.isNotEmpty 
+                    ? Text(
+                        project.titleVn,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          height: 1.25,
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: project.students.length,
+                        itemBuilder: (context, idx) {
+                          final s = project.students[idx];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 2.0),
+                            child: Text(
+                              '• ${s.name} (${s.roll})',
+                              style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        },
+                      ),
               ),
               const Divider(height: 16),
               Row(
@@ -702,7 +825,7 @@ class _BottomActionsBar extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onImportSurveys,
                 icon: const Icon(Icons.merge_type_rounded),
-                label: const Text('Nhập file khảo sát SV'),
+                label: const Text('Nhập file Excel/Sheet đề tài'),
               ),
               FilledButton.icon(
                 onPressed: onExportAllCmt,

@@ -164,22 +164,26 @@ class ProjectNotifier extends StateNotifier<ProjectListState> {
   }
 
   /// Nhập dữ liệu khảo sát sinh viên và ghép nối vào danh sách dự án.
+  /// - Tự động đắp dữ liệu Đề tài (Mã đề tài, Tên TV, Tên TA) vào nhóm nếu tìm thấy qua Mã nhóm hoặc MSSV.
   /// - Cập nhật Email và StudentEvaluation của từng SV theo Roll.
-  /// - Dùng FuzzyMatcher so khớp tên đề tài (ngưỡng 90%).
-  /// - Gắn cờ hasTitleConflict nếu tên đề tài lệch > 10%.
   void importStudentSurveys(List<SurveyRow> surveys) {
-    // Tạo bảng tra nhanh: Roll → SurveyRow
-    final byRoll = <String, SurveyRow>{
-      for (final s in surveys) s.roll.toUpperCase(): s,
-    };
+    // Tạo bảng tra nhanh
+    final byGroup = <String, SurveyRow>{};
+    final byRoll = <String, SurveyRow>{};
+    for (final s in surveys) {
+      if (s.groupCode.isNotEmpty) {
+        byGroup[s.groupCode.toUpperCase()] = s;
+      }
+      if (s.roll.isNotEmpty) {
+        byRoll[s.roll.toUpperCase()] = s;
+      }
+    }
 
     final updated = List<ProjectModel>.from(state.projects);
 
     for (var pi = 0; pi < updated.length; pi++) {
       final project = updated[pi];
-      bool projectHasConflict = false;
-      final conflictLines = <String>[];
-
+      
       // Cập nhật thông tin từng sinh viên trong dự án
       final updatedStudents = project.students.map((student) {
         final survey = byRoll[student.roll.toUpperCase()];
@@ -192,43 +196,56 @@ class ProjectNotifier extends StateNotifier<ProjectListState> {
         );
       }).toList();
 
-      // Kiểm tra xung đột tên đề tài theo sinh viên đại diện đầu tiên có survey
-      for (final student in project.students) {
-        final survey = byRoll[student.roll.toUpperCase()];
-        if (survey == null) continue;
+      // Lấy thông tin đề tài từ file khảo sát theo Mã nhóm
+      final surveyByGroup = byGroup[project.groupCode.toUpperCase()];
+      
+      String newTitleVn = project.titleVn;
+      String newTitleEn = project.titleEn;
+      String newTopicCode = project.topicCode;
+      GvEvaluationModel newGvEval = project.gvEvaluation;
 
-        // So khớp tên tiếng Việt
-        if (project.titleVn.isNotEmpty && survey.titleVn.isNotEmpty) {
-          final simVn = FuzzyMatcher.getSimilarityPercent(project.titleVn, survey.titleVn);
-          if (simVn < 90) {
-            projectHasConflict = true;
-            conflictLines.add(
-              '[VN] Gốc: "${project.titleVn}"\n'
-              '     SV nhập: "${survey.titleVn}" ($simVn%)',
-            );
-          }
+      if (surveyByGroup != null) {
+        if (surveyByGroup.titleVn.isNotEmpty) newTitleVn = surveyByGroup.titleVn;
+        if (surveyByGroup.titleEn.isNotEmpty) newTitleEn = surveyByGroup.titleEn;
+        if (surveyByGroup.topicCode.isNotEmpty) newTopicCode = surveyByGroup.topicCode;
+        
+        newGvEval = newGvEval.copyWith(
+          content: surveyByGroup.content.isNotEmpty ? surveyByGroup.content : newGvEval.content,
+          form: surveyByGroup.form.isNotEmpty ? surveyByGroup.form : newGvEval.form,
+          attitude: surveyByGroup.attitude.isNotEmpty ? surveyByGroup.attitude : newGvEval.attitude,
+          achievement: surveyByGroup.achievement.isNotEmpty ? surveyByGroup.achievement : newGvEval.achievement,
+          limitation: surveyByGroup.limitation.isNotEmpty ? surveyByGroup.limitation : newGvEval.limitation,
+        );
+      } else {
+        // Nếu không tìm thấy qua mã nhóm, thử tìm qua từng sinh viên
+        for (final student in project.students) {
+          final survey = byRoll[student.roll.toUpperCase()];
+          if (survey == null) continue;
+
+          if (survey.titleVn.isNotEmpty) newTitleVn = survey.titleVn;
+          if (survey.titleEn.isNotEmpty) newTitleEn = survey.titleEn;
+          if (survey.topicCode.isNotEmpty) newTopicCode = survey.topicCode;
+          
+          newGvEval = newGvEval.copyWith(
+            content: survey.content.isNotEmpty ? survey.content : newGvEval.content,
+            form: survey.form.isNotEmpty ? survey.form : newGvEval.form,
+            attitude: survey.attitude.isNotEmpty ? survey.attitude : newGvEval.attitude,
+            achievement: survey.achievement.isNotEmpty ? survey.achievement : newGvEval.achievement,
+            limitation: survey.limitation.isNotEmpty ? survey.limitation : newGvEval.limitation,
+          );
+          
+          break; // Giả định cả nhóm có chung đề tài
         }
-
-        // So khớp tên tiếng Anh
-        if (project.titleEn.isNotEmpty && survey.titleEn.isNotEmpty) {
-          final simEn = FuzzyMatcher.getSimilarityPercent(project.titleEn, survey.titleEn);
-          if (simEn < 90) {
-            projectHasConflict = true;
-            conflictLines.add(
-              '[EN] Gốc: "${project.titleEn}"\n'
-              '     SV nhập: "${survey.titleEn}" ($simEn%)',
-            );
-          }
-        }
-
-        // Chỉ cần kiểm tra một SV đại diện là đủ (vì cùng nhóm có cùng đề tài)
-        break;
       }
 
       updated[pi] = project.copyWith(
         students: updatedStudents,
-        hasTitleConflict: projectHasConflict,
-        conflictDetails: conflictLines.join('\n'),
+        titleVn: newTitleVn,
+        titleEn: newTitleEn,
+        topicCode: newTopicCode,
+        gvEvaluation: newGvEval,
+        hasTitleConflict: false,
+        conflictDetails: '',
       );
     }
 
@@ -236,7 +253,7 @@ class ProjectNotifier extends StateNotifier<ProjectListState> {
     _validateAllProjects();
   }
 
-  /// Đồng bộ tên đề tài theo tên sinh viên khai báo trong khảo sát.
+  /// Đồng bộ tên đề tài theo tên sinh viên khai báo trong khảo sát (Đã lỗi thời, giữ nguyên chữ ký hàm để tránh lỗi).
   void syncTitleFromSurvey(int projectIndex, {String? newTitleVn, String? newTitleEn}) {
     if (projectIndex < 0 || projectIndex >= state.projects.length) return;
     final updated = List<ProjectModel>.from(state.projects);
