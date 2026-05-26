@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const _seed = Color(0xFF1565C0);
-  static const _secondary = Color(0xFF00838F);
+  static const _seed = Color(0xFF1A56DB);
+  static const _secondary = Color(0xFF0E9F9F);
+  static const _tertiary = Color(0xFF7E3AF2);
 
   static ThemeData light() {
     final base = ThemeData(
@@ -12,10 +13,13 @@ class AppTheme {
         seedColor: _seed,
         brightness: Brightness.light,
         secondary: _secondary,
+        tertiary: _tertiary,
       ),
     );
+    final text = GoogleFonts.beVietnamProTextTheme(base.textTheme);
     return base.copyWith(
-      textTheme: GoogleFonts.beVietnamProTextTheme(base.textTheme),
+      textTheme: text,
+      scaffoldBackgroundColor: base.colorScheme.surface,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -23,31 +27,65 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: base.colorScheme.onSurface,
         titleTextStyle: GoogleFonts.beVietnamPro(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
           color: base.colorScheme.onSurface,
         ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: base.colorScheme.surfaceContainerHighest.withOpacity(0.55),
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: base.colorScheme.outlineVariant.withOpacity(0.65),
+          ),
+        ),
+        color: base.colorScheme.surface.withOpacity(0.92),
+      ),
+      dividerTheme: DividerThemeData(
+        color: base.colorScheme.outlineVariant.withOpacity(0.5),
+        space: 1,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
+        fillColor: base.colorScheme.surfaceContainerHighest.withOpacity(0.45),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: base.colorScheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: base.colorScheme.primary, width: 2),
+        ),
+        labelStyle: text.labelMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
     );
   }
@@ -59,11 +97,29 @@ class AppTheme {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          c.primaryContainer.withOpacity(0.35),
-          c.secondaryContainer.withOpacity(0.45),
+          c.primary.withOpacity(0.08),
+          c.secondary.withOpacity(0.06),
+          c.tertiary.withOpacity(0.04),
           c.surface,
         ],
+        stops: const [0.0, 0.35, 0.65, 1.0],
       ),
+    );
+  }
+
+  static BoxDecoration glassCard(BuildContext context) {
+    final c = Theme.of(context).colorScheme;
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(20),
+      color: c.surface.withOpacity(0.88),
+      border: Border.all(color: c.outlineVariant.withOpacity(0.55)),
+      boxShadow: [
+        BoxShadow(
+          color: c.primary.withOpacity(0.06),
+          blurRadius: 24,
+          offset: const Offset(0, 8),
+        ),
+      ],
     );
   }
 }

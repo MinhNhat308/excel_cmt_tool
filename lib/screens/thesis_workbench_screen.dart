@@ -2,10 +2,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../constants/sheet_field_labels.dart';
 import '../models/de_tai_record.dart';
 import '../models/fg_roster.dart';
 import '../models/project_bundle.dart';
+import '../models/thesis_comment.dart';
 import '../services/batch_export_service.dart';
+import '../utils/fugrade_password.dart';
+import '../services/cmt_export_service.dart';
 import '../services/fg_import_service.dart';
 import '../services/google_sheet_service.dart';
 import '../services/project_merge_service.dart';
@@ -25,6 +29,7 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
   final _merge = ProjectMergeService();
   final _storage = ProjectStorageService();
   final _batchExport = BatchExportService();
+  final _cmtBinary = CmtExportService();
 
   final _sheetUrlCtrl = TextEditingController();
 
@@ -118,6 +123,71 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
     _applySheetResult(res, isReload: true);
   }
 
+  Future<void> _importCmt() async {
+    if (kIsWeb) {
+      _snack('Import .cmt chỉ hỗ trợ trên Windows.');
+      return;
+    }
+    final pick = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['cmt'],
+    );
+    if (pick == null || pick.files.isEmpty || pick.files.single.path == null) {
+      return;
+    }
+    try {
+      final thesis = await _cmtBinary.importFromFile(pick.files.single.path!);
+      if (!mounted) return;
+
+      var topics = List<DeTaiRecord>.from(_bundle?.topics ?? []);
+      final maNhom =
+          thesis.className.isNotEmpty ? thesis.className : '';
+
+      var idx = -1;
+      if (maNhom.isNotEmpty) {
+        idx = topics.indexWhere((t) => FgRoster.groupsMatch(t.maNhom, maNhom));
+      }
+      if (idx < 0 &&
+          _selectedIndex != null &&
+          _selectedIndex! < topics.length) {
+        idx = _selectedIndex!;
+      }
+
+      if (idx < 0) {
+        final t = DeTaiRecord()..updateFromThesis(thesis);
+        if (maNhom.isNotEmpty) t.maNhom = maNhom;
+        topics.add(t);
+        idx = topics.length - 1;
+      } else {
+        topics[idx].updateFromThesis(thesis);
+        if (maNhom.isNotEmpty) topics[idx].maNhom = maNhom;
+      }
+
+      final roster = _bundle?.roster;
+      if (roster != null) {
+        topics[idx].mergeStudentsWithRoster(roster);
+      }
+
+      setState(() {
+        _bundle = ProjectBundle(
+          roster: roster,
+          topics: topics,
+          sheetUrl: _sheetUrlCtrl.text.trim(),
+        );
+        _selectedIndex = idx;
+        _reloadGeneration++;
+        _status =
+            'Đã import .cmt · nhóm: ${topics[idx].maNhom} · '
+            '${topics[idx].students.length} SV · '
+            '${topics[idx].content.isNotEmpty ? "có nội dung" : ""}';
+      });
+      _rebuildBundle();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _status = 'Lỗi import .cmt: $e');
+    }
+  }
+
   void _applySheetResult(SheetImportResult res, {bool isReload = false}) {
     if (res.error != null) {
       setState(() => _status = res.error);
@@ -136,12 +206,13 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
       final withTitles = res.topics
           .where((t) => t.titleVn.isNotEmpty || t.titleEn.isNotEmpty)
           .length;
-      final withNx = res.topics.where((t) => t.nhanXetSv.isNotEmpty).length;
+      final withKl =
+          res.topics.where((t) => t.content.isNotEmpty).length;
       _status = isReload
           ? 'Đã tải lại sheet: ${res.topics.length} đề tài · '
-              '$withTitles có tên VN/EN · $withNx có nhận xét.$cols'
+              '$withTitles có tên VN/EN · $withKl có nội dung KL.$cols'
           : 'Đã import ${res.topics.length} đề tài từ sheet · '
-              '$withTitles có tên VN/EN · $withNx có nhận xét.$cols';
+              '$withTitles có tên VN/EN · $withKl có nội dung KL.$cols';
     });
     _rebuildBundle();
   }
@@ -285,11 +356,38 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final wide = MediaQuery.sizeOf(context).width >= 1000;
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Nhận xét KL — Roster + Sheet'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.school_rounded, color: scheme.primary, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Nhận xét khóa luận'),
+                  Text(
+                    'Roster · Google Sheet · Xuất .cmt',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Mở dự án JSON',
@@ -319,6 +417,7 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
                   onImportFg: _importFg,
                   onImportSheetUrl: () => _importSheetUrl(),
                   onImportSheetFile: _importSheetFile,
+                  onImportCmt: _importCmt,
                   sheetLoading: _sheetLoading,
                 ),
               ),
@@ -333,7 +432,7 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 SizedBox(
-                                  width: 320,
+                                  width: 280,
                                   child: _TopicList(
                                     topics: _bundle!.topics,
                                     selectedIndex: _selectedIndex,
@@ -431,6 +530,7 @@ class _ImportPanel extends StatelessWidget {
     required this.onImportFg,
     required this.onImportSheetUrl,
     required this.onImportSheetFile,
+    required this.onImportCmt,
     this.sheetLoading = false,
   });
 
@@ -442,75 +542,166 @@ class _ImportPanel extends StatelessWidget {
   final VoidCallback onImportFg;
   final VoidCallback onImportSheetUrl;
   final VoidCallback onImportSheetFile;
+  final VoidCallback onImportCmt;
   final bool sheetLoading;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final ready = bundle?.isReady ?? false;
-    return Card(
+    return DecoratedBox(
+      decoration: AppTheme.glassCard(context),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            Row(
               children: [
-                FilledButton.icon(
-                  onPressed: onImportFg,
-                  icon: const Icon(Icons.group_rounded),
-                  label: const Text('Import roster'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onImportSheetFile,
-                  icon: const Icon(Icons.table_rows_rounded),
-                  label: const Text('Sheet file'),
+                Icon(Icons.cloud_upload_rounded, color: scheme.primary, size: 22),
+                const SizedBox(width: 10),
+                Text(
+                  'Nhập dữ liệu',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                FilledButton.icon(
+                  onPressed: onImportFg,
+                  icon: const Icon(Icons.folder_shared_rounded, size: 20),
+                  label: const Text('Roster (.fg)'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onImportSheetFile,
+                  icon: const Icon(Icons.table_chart_rounded, size: 20),
+                  label: const Text('Sheet file'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onImportCmt,
+                  icon: const Icon(Icons.upload_file_rounded, size: 20),
+                  label: const Text('Import .cmt'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             TextField(
               controller: sheetUrlCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Link Google Sheet',
                 hintText: 'https://docs.google.com/spreadsheets/d/...',
-                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.link_rounded, color: scheme.primary),
                 isDense: true,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             FilledButton.tonalIcon(
               onPressed: sheetLoading ? null : onImportSheetUrl,
               icon: sheetLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: scheme.primary,
+                      ),
                     )
-                  : const Icon(Icons.cloud_download_rounded),
-              label: Text(sheetLoading ? 'Đang tải...' : 'Tải / tải lại Sheet'),
+                  : const Icon(Icons.sync_rounded),
+              label: Text(sheetLoading ? 'Đang tải sheet...' : 'Tải / tải lại Sheet'),
             ),
-            if (fgFileName != null || sheetLabel != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                [
-                  if (fgFileName != null) 'FG: $fgFileName',
-                  if (sheetLabel != null) 'Sheet: $sheetLabel',
+            if (fgFileName != null || sheetLabel != null || bundle?.roster != null) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (fgFileName != null)
+                    _InfoChip(
+                      icon: Icons.badge_rounded,
+                      label: 'FG: $fgFileName',
+                      color: scheme.primaryContainer,
+                    ),
+                  if (sheetLabel != null)
+                    _InfoChip(
+                      icon: Icons.grid_on_rounded,
+                      label: sheetLabel!,
+                      color: scheme.secondaryContainer,
+                    ),
                   if (bundle?.roster != null)
-                    '${bundle!.roster!.students.length} SV · ${bundle!.topics.length} đề tài'
-                    '${ready ? " · ${bundle!.matchedTopicCount} đã ghép SV" : ""}',
-                ].join('\n'),
-                style: TextStyle(color: scheme.primary, fontSize: 13),
+                    _InfoChip(
+                      icon: Icons.people_rounded,
+                      label:
+                          '${bundle!.roster!.students.length} SV · ${bundle!.topics.length} đề tài'
+                          '${ready ? " · ${bundle!.matchedTopicCount} ghép" : ""}',
+                      color: scheme.tertiaryContainer,
+                    ),
+                ],
               ),
             ],
             if (status != null) ...[
-              const SizedBox(height: 8),
-              Text(status!, style: TextStyle(color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        height: 1.45,
+                      ),
+                ),
+              ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -525,12 +716,33 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
-        hasFg
-            ? 'Đã có roster. Hãy import Google Sheet (hoặc CSV/XLSX).'
-            : 'Import roster (Excel/JSON) và Google Sheet để bắt đầu.',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: scheme.onSurfaceVariant),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              hasFg ? Icons.table_view_rounded : Icons.rocket_launch_rounded,
+              size: 56,
+              color: scheme.primary.withOpacity(0.75),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              hasFg ? 'Đã có roster' : 'Bắt đầu nhập liệu',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasFg
+                  ? 'Import Google Sheet (link hoặc file CSV/XLSX) để ghép cột với đề tài.'
+                  : 'Import roster (.fg) rồi Sheet — cột form trùng với file Google Sheet của bạn.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -556,24 +768,51 @@ class _TopicList extends StatelessWidget {
       itemBuilder: (context, i) {
         final t = topics[i];
         final selected = selectedIndex == i;
-        return ListTile(
-          selected: selected,
-          title: Text(
-            t.displayTitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+        final scheme = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: Material(
+            color: selected
+                ? scheme.primaryContainer.withOpacity(0.55)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            child: ListTile(
+              selected: selected,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: selected
+                    ? BorderSide(color: scheme.primary.withOpacity(0.45))
+                    : BorderSide.none,
+              ),
+              title: Text(
+                t.displayTitle,
+                maxLines: 3,
+                softWrap: true,
+                style: TextStyle(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                '${SheetFieldLabels.maDeTai}: ${t.maDeTai.isEmpty ? "—" : t.maDeTai}\n'
+                '${SheetFieldLabels.maNhom}: ${t.maNhom} · ${t.students.length} SV',
+                softWrap: true,
+              ),
+              leading: CircleAvatar(
+                backgroundColor: selected
+                    ? scheme.primary
+                    : scheme.surfaceContainerHighest,
+                foregroundColor:
+                    selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                child: Text('${i + 1}'),
+              ),
+              trailing: t.students.isEmpty
+                  ? Icon(Icons.warning_amber_rounded,
+                      color: scheme.tertiary, size: 22)
+                  : Icon(Icons.chevron_right_rounded,
+                      color: scheme.outline),
+              onTap: () => onSelect(i),
+            ),
           ),
-          subtitle: Text(
-            'Mã ĐT: ${t.maDeTai.isEmpty ? "—" : t.maDeTai} · Nhóm: ${t.maNhom} · '
-            '${t.students.length} SV',
-          ),
-          leading: CircleAvatar(
-            child: Text('${i + 1}'),
-          ),
-          trailing: t.students.isEmpty
-              ? const Icon(Icons.warning_amber_rounded, color: Colors.orange)
-              : null,
-          onTap: () => onSelect(i),
         );
       },
     );
@@ -611,6 +850,8 @@ class _TopicDetail extends StatefulWidget {
 
 class _TopicDetailState extends State<_TopicDetail> {
   final _fields = <String, TextEditingController>{};
+  final _formScrollCtrl = ScrollController();
+  bool _passwordVisible = false;
 
   @override
   void didUpdateWidget(covariant _TopicDetail oldWidget) {
@@ -630,7 +871,7 @@ class _TopicDetailState extends State<_TopicDetail> {
   void _syncControllers() {
     final t = widget.topic;
     final keys = [
-      'maDeTai', 'maNhom', 'titleVn', 'titleEn', 'danhGia', 'nhanXetSv',
+      'maDeTai', 'maNhom', 'titleVn', 'titleEn',
       'content', 'form', 'attitude', 'achievement', 'limitation', 'password',
     ];
     if (t == null) {
@@ -640,19 +881,18 @@ class _TopicDetailState extends State<_TopicDetail> {
       _fields.clear();
       return;
     }
+    final pw = t.password;
     final values = {
       'maDeTai': t.maDeTai,
       'maNhom': t.maNhom,
       'titleVn': t.titleVn,
       'titleEn': t.titleEn,
-      'danhGia': t.danhGia,
-      'nhanXetSv': t.nhanXetSv,
       'content': t.content,
       'form': t.form,
       'attitude': t.attitude,
       'achievement': t.achievement,
       'limitation': t.limitation,
-      'password': t.password,
+      'password': FugradePassword.looksLikeMd5(pw) ? '' : pw,
     };
     for (final k in keys) {
       _fields.putIfAbsent(k, () => TextEditingController());
@@ -664,10 +904,23 @@ class _TopicDetailState extends State<_TopicDetail> {
 
   @override
   void dispose() {
+    _formScrollCtrl.dispose();
     for (final c in _fields.values) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Widget _scrollableForm(Widget child, {EdgeInsetsGeometry? padding}) {
+    return Scrollbar(
+      controller: _formScrollCtrl,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _formScrollCtrl,
+        padding: padding,
+        child: child,
+      ),
+    );
   }
 
   void _bind(String key, void Function(DeTaiRecord t, String v) set) {
@@ -678,91 +931,202 @@ class _TopicDetailState extends State<_TopicDetail> {
   Widget build(BuildContext context) {
     final t = widget.topic;
     if (t == null) {
-      return const Card(
-        child: Center(child: Text('Chọn một đề tài trong danh sách.')),
+      return DecoratedBox(
+        decoration: AppTheme.glassCard(context),
+        child: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Text('Chọn một đề tài trong danh sách bên trái.'),
+          ),
+        ),
       );
     }
-    return Card(
+    return DecoratedBox(
+      decoration: AppTheme.glassCard(context),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                t.displayTitle,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              _row('Mã đề tài', 'maDeTai', 1,
-                  (x, v) => x.maDeTai = v),
-              _row('Mã nhóm', 'maNhom', 1, (x, v) {
-                x.maNhom = v;
-                if (widget.roster != null) {
-                  x.attachStudentsFromRoster(widget.roster!);
-                }
-              }),
-              _row('Tên VN', 'titleVn', 1, (x, v) => x.titleVn = v),
-              _row('Tên EN', 'titleEn', 1, (x, v) => x.titleEn = v),
-              _row('Đánh giá', 'danhGia', 2, (x, v) => x.danhGia = v),
-              _row('Nhận xét (góc nhìn SV)', 'nhanXetSv', 4,
-                  (x, v) => x.nhanXetSv = v),
-              _row('Nội dung', 'content', 3, (x, v) => x.content = v),
-              _row('Hình thức', 'form', 1, (x, v) => x.form = v),
-              _row('Thái độ', 'attitude', 1, (x, v) => x.attitude = v),
-              _row('Mức độ đạt', 'achievement', 1,
-                  (x, v) => x.achievement = v),
-              _row('Hạn chế', 'limitation', 2, (x, v) => x.limitation = v),
-              _row('Password .cmt', 'password', 1, (x, v) => x.password = v),
-              const SizedBox(height: 12),
-              Text(
-                'Sinh viên (${t.students.length})',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 6),
-              if (t.students.isEmpty)
-                const Text(
-                  'Chưa ghép SV — kiểm tra mã nhóm khớp roster.',
-                  style: TextStyle(color: Colors.orange),
-                )
-              else
-                ...t.students.map(
-                  (s) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text('• ${s.roll} — ${s.name}'),
-                  ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final sideBySide = constraints.maxWidth >= 760;
+            final topicFields = _topicFieldsColumn(context, t);
+            final studentPanel = _StudentDefensePanel(
+              students: t.students,
+              onStudentChanged: _notifyStudentChange,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: sideBySide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              flex: 45,
+                              child: _scrollableForm(
+                                topicFields,
+                                padding: const EdgeInsets.only(right: 8),
+                              ),
+                            ),
+                            VerticalDivider(
+                              width: 1,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant,
+                            ),
+                            Expanded(
+                              flex: 55,
+                              child: studentPanel,
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Flexible(
+                              flex: 45,
+                              child: _scrollableForm(topicFields),
+                            ),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              flex: 55,
+                              child: studentPanel,
+                            ),
+                          ],
+                        ),
                 ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: widget.onExport,
-                    icon: const Icon(Icons.save_alt_rounded),
-                    label: const Text('Export .cmt'),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: widget.onExportAll,
-                    icon: const Icon(Icons.archive_rounded),
-                    label: const Text('Export all (ZIP)'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.onSaveJson,
-                    icon: const Icon(Icons.save_rounded),
-                    label: const Text('Save JSON'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.onSaveFg,
-                    icon: const Icon(Icons.save_rounded),
-                    label: const Text('Save .fg'),
-                  ),
-                ],
+                const Divider(height: 28),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: widget.onExport,
+                      icon: const Icon(Icons.file_download_rounded),
+                      label: const Text('Xuất .cmt'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: widget.onExportAll,
+                      icon: const Icon(Icons.folder_zip_rounded),
+                      label: const Text('Xuất tất cả (ZIP)'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: widget.onSaveJson,
+                      icon: const Icon(Icons.data_object_rounded),
+                      label: const Text('Lưu JSON'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: widget.onSaveFg,
+                      icon: const Icon(Icons.lock_rounded),
+                      label: const Text('Lưu .fg'),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _notifyStudentChange() {
+    widget.onChanged((t) {});
+  }
+
+  Widget _topicFieldsColumn(BuildContext context, DeTaiRecord t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          t.displayTitle,
+          softWrap: true,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
               ),
-            ],
+        ),
+        const SizedBox(height: 16),
+        _sectionTitle(context, Icons.article_outlined, 'Thông tin đề tài'),
+        _row(SheetFieldLabels.maDeTai, 'maDeTai', 1, (x, v) => x.maDeTai = v),
+        _row(SheetFieldLabels.maNhom, 'maNhom', 1, (x, v) {
+          x.maNhom = v;
+          if (widget.roster != null) {
+            x.attachStudentsFromRoster(widget.roster!);
+          }
+        }),
+        _row(SheetFieldLabels.titleVn, 'titleVn', 2, (x, v) => x.titleVn = v),
+        _row(SheetFieldLabels.titleEn, 'titleEn', 2, (x, v) => x.titleEn = v),
+        const SizedBox(height: 8),
+        _sectionTitle(context, Icons.fact_check_outlined, 'Kết luận (cột Sheet)'),
+        _row(SheetFieldLabels.content, 'content', 4, (x, v) => x.content = v),
+        _row(SheetFieldLabels.form, 'form', 2, (x, v) => x.form = v),
+        _row(SheetFieldLabels.attitude, 'attitude', 2, (x, v) => x.attitude = v),
+        _row(SheetFieldLabels.achievement, 'achievement', 2,
+            (x, v) => x.achievement = v),
+        _row(SheetFieldLabels.limitation, 'limitation', 3,
+            (x, v) => x.limitation = v),
+        const SizedBox(height: 8),
+        _sectionTitle(context, Icons.key_rounded, SheetFieldLabels.cmtPassword),
+        _passwordField(context),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(BuildContext context, IconData icon, String title) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: scheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primary,
+                    letterSpacing: 0.3,
+                  ),
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _passwordField(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasStoredMd5 = widget.topic != null &&
+        FugradePassword.looksLikeMd5(widget.topic!.password) &&
+        _fields['password']!.text.isEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: _fields['password']!,
+        obscureText: !_passwordVisible,
+        onChanged: (v) {
+          widget.onChanged((x) {
+            if (v.trim().isNotEmpty) {
+              x.password = v;
+            } else if (!hasStoredMd5) {
+              x.password = '';
+            }
+          });
+        },
+        decoration: InputDecoration(
+          labelText: SheetFieldLabels.cmtPassword,
+          hintText: 'Để trống = mặc định "1"',
+          prefixIcon: Icon(Icons.lock_outline_rounded, color: scheme.primary),
+          suffixIcon: IconButton(
+            tooltip: _passwordVisible ? 'Ẩn' : 'Hiện',
+            onPressed: () => setState(() => _passwordVisible = !_passwordVisible),
+            icon: Icon(
+              _passwordVisible ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+            ),
+          ),
+          isDense: true,
         ),
       ),
     );
@@ -771,22 +1135,470 @@ class _TopicDetailState extends State<_TopicDetail> {
   Widget _row(
     String label,
     String key,
-    int maxLines,
-    void Function(DeTaiRecord t, String v) set,
-  ) {
+    int minLines,
+    void Function(DeTaiRecord t, String v) set, {
+    int? maxLines,
+  }) {
     final ctrl = _fields[key]!;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
         controller: ctrl,
         onChanged: (_) => _bind(key, set),
-        maxLines: maxLines,
+        minLines: minLines,
+        maxLines: maxLines ?? (minLines > 1 ? 16 : 3),
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
-          isDense: true,
+          alignLabelWithHint: minLines > 1,
+          isDense: minLines == 1,
         ),
       ),
     );
   }
 }
+
+class _StudentDefensePanel extends StatefulWidget {
+  const _StudentDefensePanel({
+    required this.students,
+    required this.onStudentChanged,
+  });
+
+  final List<ThesisStudent> students;
+  final VoidCallback onStudentChanged;
+
+  @override
+  State<_StudentDefensePanel> createState() => _StudentDefensePanelState();
+}
+
+class _StudentDefensePanelState extends State<_StudentDefensePanel> {
+  final _verticalScrollCtrl = ScrollController();
+  final _horizontalScrollCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalScrollCtrl.dispose();
+    _horizontalScrollCtrl.dispose();
+    super.dispose();
+  }
+
+  static const _headers = [
+    '#',
+    'Roll',
+    'Name',
+    'Agree_to_defense',
+    'Revised_for_the_second_defense',
+    'Disagree_to_defense',
+    'Note',
+  ];
+
+  static const _minTableWidth = 820.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final students = widget.students;
+    final scheme = Theme.of(context).colorScheme;
+    final border = TableBorder.all(color: scheme.outlineVariant);
+    final headerStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          height: 1.25,
+        );
+    const cellPad = EdgeInsets.symmetric(horizontal: 8, vertical: 8);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            child: Text(
+              'Sinh viên bảo vệ (${students.length}) — '
+              'Mỗi cột Agree / Revised / Disagree: x hoặc X, để trống nếu không áp dụng',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          if (students.isEmpty)
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'Chưa có SV — kiểm tra mã nhóm.',
+                  style: TextStyle(color: Colors.orange),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final tableWidth = constraints.maxWidth < _minTableWidth
+                      ? _minTableWidth
+                      : constraints.maxWidth;
+                  return Scrollbar(
+                    controller: _verticalScrollCtrl,
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      controller: _verticalScrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+                      child: SingleChildScrollView(
+                        controller: _horizontalScrollCtrl,
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: tableWidth,
+                          child: Table(
+                              border: border,
+                              defaultVerticalAlignment:
+                                  TableCellVerticalAlignment.top,
+                              columnWidths: {
+                                0: const FixedColumnWidth(36),
+                                1: const FixedColumnWidth(100),
+                                2: FlexColumnWidth(2.2),
+                                3: const FixedColumnWidth(52),
+                                4: const FixedColumnWidth(100),
+                                5: const FixedColumnWidth(52),
+                                6: FlexColumnWidth(2.5),
+                              },
+                              children: [
+                                TableRow(
+                                  decoration: BoxDecoration(
+                                    color: scheme.surfaceContainerHighest,
+                                  ),
+                                  children: _headers
+                                      .map(
+                                        (h) => Padding(
+                                          padding: cellPad,
+                                          child: Text(
+                                            h,
+                                            style: headerStyle,
+                                            softWrap: true,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                                ...students.asMap().entries.map(
+                                      (e) => _StudentDefenseTableRow.build(
+                                        context: context,
+                                        index: e.key,
+                                        student: e.value,
+                                        onChanged: widget.onStudentChanged,
+                                        cellPad: cellPad,
+                                      ),
+                                    ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentDefenseTableRow {
+  static TableRow build({
+    required BuildContext context,
+    required int index,
+    required ThesisStudent student,
+    required VoidCallback onChanged,
+    required EdgeInsets cellPad,
+  }) {
+    Widget readCell(String text) => Padding(
+          padding: cellPad,
+          child: SelectableText(
+            text,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        );
+
+    return TableRow(
+      children: [
+        Padding(
+          padding: cellPad,
+          child: Text(
+            '${index + 1}',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ),
+        readCell(student.roll),
+        readCell(student.name),
+        Padding(
+          padding: cellPad,
+          child: _DefenseMarkCell(
+            value: student.agreeToDefense,
+            onCommit: (v) {
+              student.agreeToDefense = v;
+              onChanged();
+            },
+          ),
+        ),
+        Padding(
+          padding: cellPad,
+          child: _DefenseMarkCell(
+            value: student.revisedForSecondDefense,
+            onCommit: (v) {
+              student.revisedForSecondDefense = v;
+              onChanged();
+            },
+          ),
+        ),
+        Padding(
+          padding: cellPad,
+          child: _DefenseMarkCell(
+            value: student.disagreeToDefense,
+            onCommit: (v) {
+              student.disagreeToDefense = v;
+              onChanged();
+            },
+          ),
+        ),
+        Padding(
+          padding: cellPad,
+          child: _DefenseNoteCell(
+            value: student.note,
+            onChanged: (v) {
+              student.note = v;
+              onChanged();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DefenseMarkCell extends StatefulWidget {
+  const _DefenseMarkCell({
+    required this.value,
+    required this.onCommit,
+  });
+
+  final String value;
+  final ValueChanged<String> onCommit;
+
+  @override
+  State<_DefenseMarkCell> createState() => _DefenseMarkCellState();
+}
+
+class _DefenseMarkCellState extends State<_DefenseMarkCell> {
+  late final TextEditingController _ctrl;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: _display(widget.value));
+  }
+
+  @override
+  void didUpdateWidget(covariant _DefenseMarkCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final d = _display(widget.value);
+    if (oldWidget.value != widget.value && _ctrl.text != d) {
+      _ctrl.text = d;
+      _errorText = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String _display(String v) =>
+      ThesisStudent.isDefenseMark(v) ? 'x' : '';
+
+  void _showInvalidDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Input conclusion'),
+        content: const Text(
+          'Invalid value!\nThe value must be x or X!',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _rejectInvalid(String attempted) {
+    final revert = _display(widget.value);
+    setState(() => _errorText = 'Chỉ x hoặc X');
+    _ctrl.value = TextEditingValue(
+      text: revert,
+      selection: TextSelection.collapsed(offset: revert.length),
+    );
+    _showInvalidDialog();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          attempted.isEmpty
+              ? 'Giá trị phải là x hoặc X (hoặc để trống).'
+              : '"$attempted" không hợp lệ — chỉ x hoặc X.',
+        ),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _handleChanged(String text) {
+    if (text.isEmpty) {
+      setState(() => _errorText = null);
+      widget.onCommit('');
+      return;
+    }
+    final normalized = ThesisStudent.normalizeDefenseMark(text);
+    if (normalized == null) {
+      _rejectInvalid(text);
+      return;
+    }
+    setState(() => _errorText = null);
+    if (text != 'x') {
+      _ctrl.value = const TextEditingValue(
+        text: 'x',
+        selection: TextSelection.collapsed(offset: 1),
+      );
+    }
+    widget.onCommit('x');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasError = _errorText != null;
+    final isEmpty =
+        !ThesisStudent.isDefenseMark(widget.value) && _ctrl.text.isEmpty;
+
+    return SizedBox(
+      width: 56,
+      child: TextField(
+        controller: _ctrl,
+        textAlign: TextAlign.center,
+        maxLength: 1,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: isEmpty && !hasError
+              ? Colors.white
+              : (hasError
+                  ? scheme.errorContainer.withValues(alpha: 0.35)
+                  : scheme.primaryContainer.withValues(alpha: 0.25)),
+          counterText: '',
+          hintText: '',
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          errorText: _errorText,
+          errorStyle: const TextStyle(fontSize: 10, height: 1.1),
+          errorMaxLines: 2,
+          border: const OutlineInputBorder(),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: hasError
+                  ? scheme.error
+                  : scheme.outlineVariant.withValues(alpha: 0.6),
+              width: hasError ? 2 : 1,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: hasError ? scheme.error : scheme.primary,
+              width: 2,
+            ),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: scheme.error, width: 2),
+          ),
+        ),
+        onChanged: _handleChanged,
+        onTapOutside: (_) {
+          if (_errorText != null) _rejectInvalid(_ctrl.text);
+        },
+      ),
+    );
+  }
+}
+
+class _DefenseNoteCell extends StatefulWidget {
+  const _DefenseNoteCell({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_DefenseNoteCell> createState() => _DefenseNoteCellState();
+}
+
+class _DefenseNoteCellState extends State<_DefenseNoteCell> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DefenseNoteCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value && _ctrl.text != widget.value) {
+      _ctrl.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return TextField(
+      controller: _ctrl,
+      style: Theme.of(context).textTheme.bodySmall,
+      minLines: 1,
+      maxLines: 8,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        border: const OutlineInputBorder(),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: scheme.primary, width: 2),
+        ),
+      ),
+      onChanged: widget.onChanged,
+    );
+  }
+}
+

@@ -37,7 +37,6 @@ tools/fugrade_decompiled/
 tools/fg_probe/
 tools/fg_sample_decrypted.json
 
-# Nested duplicate scaffold (optional)
 excel_comment_tool/
 **/doc/api/
 **/ios/Flutter/.last_build_id

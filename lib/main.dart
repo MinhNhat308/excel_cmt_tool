@@ -14,7 +14,7 @@ class ExcelCmtApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Nhận xét đề tài',
+      title: 'FuGrade CMT Tool',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       home: const ThesisWorkbenchScreen(),

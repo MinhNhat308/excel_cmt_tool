@@ -65,11 +65,36 @@ class GoogleSheetService {
     'ten de tai',
     'ten khoa luan',
   };
+  static const _contentHeaders = {
+    'noi dung khoa luan',
+    'noi dung khóa luận',
+    'thesis content',
+    'noi dung',
+  };
+  static const _formHeaders = {
+    'hinh thuc khoa luan',
+    'hinh thuc',
+    'form',
+  };
+  static const _attitudeHeaders = {
+    'thai do cua sinh vien',
+    'thai do',
+    'attitude',
+  };
+  static const _achievementHeaders = {
+    'muc do dat duoc so voi muc tieu',
+    'muc do dat',
+    'achievement',
+    'muc do dat duoc',
+  };
+  static const _limitationHeaders = {
+    'han che',
+    'limitation',
+    'han che cua khoa luan',
+  };
   static const _danhGiaHeaders = {
     'danh gia theo goc nhin sv',
     'danh gia',
-    'muc do dat',
-    'achievement',
     'danh gia sv',
   };
   static const _nhanXetHeaders = {
@@ -77,10 +102,6 @@ class GoogleSheetService {
     'nhan xet sv',
     'nhan xet',
     'nhan xet chung',
-    'noi dung khóa luận',
-    'noi dung khoa luan',
-    'noi dung',
-    'thesis content',
     'comment',
     'feedback',
   };
@@ -183,6 +204,11 @@ class GoogleSheetService {
     final colMaNhom = cols['maNhom'];
     final colTitleEn = cols['titleEn'];
     final colTitleVn = cols['titleVn'];
+    final colContent = cols['content'];
+    final colForm = cols['form'];
+    final colAttitude = cols['attitude'];
+    final colAchievement = cols['achievement'];
+    final colLimitation = cols['limitation'];
     final colDanhGia = cols['danhGia'];
     final colNhanXet = cols['nhanXet'];
 
@@ -210,6 +236,11 @@ class GoogleSheetService {
         maNhom: maNhom,
         titleEn: titleEn,
         titleVn: titleVn,
+        content: colContent != null ? _cell(row, colContent) : '',
+        form: colForm != null ? _cell(row, colForm) : '',
+        attitude: colAttitude != null ? _cell(row, colAttitude) : '',
+        achievement: colAchievement != null ? _cell(row, colAchievement) : '',
+        limitation: colLimitation != null ? _cell(row, colLimitation) : '',
         danhGia: danhGia,
         nhanXetSv: nhanXet,
       );
@@ -251,8 +282,13 @@ class GoogleSheetService {
     return {
       'maDeTai': pick(_maDeTaiHeaders),
       'maNhom': pick(_maNhomHeaders),
-      'titleEn': pick(_titleEnHeaders),
       'titleVn': pick(_titleVnHeaders),
+      'titleEn': pick(_titleEnHeaders),
+      'content': pick(_contentHeaders),
+      'form': pick(_formHeaders),
+      'attitude': pick(_attitudeHeaders),
+      'achievement': pick(_achievementHeaders),
+      'limitation': pick(_limitationHeaders),
       'danhGia': pick(_danhGiaHeaders),
       'nhanXet': pick(_nhanXetHeaders),
     };
@@ -265,11 +301,14 @@ class GoogleSheetService {
       return '$key: ${h.isEmpty ? "cột ${col + 1}" : h}';
     }
     return [
-      label('Nhóm', cols['maNhom']),
-      label('VN', cols['titleVn']),
-      label('EN', cols['titleEn']),
-      label('Đánh giá', cols['danhGia']),
-      label('Nhận xét', cols['nhanXet']),
+      label('Mã đề tài', cols['maDeTai']),
+      label('Mã nhóm', cols['maNhom']),
+      label('Tên VN', cols['titleVn']),
+      label('Nội dung KL', cols['content']),
+      label('Hình thức', cols['form']),
+      label('Thái độ', cols['attitude']),
+      label('Mức độ đạt', cols['achievement']),
+      label('Hạn chế', cols['limitation']),
     ].join(' · ');
   }
 

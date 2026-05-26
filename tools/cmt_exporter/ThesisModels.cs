@@ -27,7 +27,7 @@ namespace FuGrade
     {
         public string Roll { get; set; } = "";
         public string Name { get; set; } = "";
-        public string Agree_to_defense { get; set; } = "x";
+        public string Agree_to_defense { get; set; } = "";
         public string Revised_for_the_second_defense { get; set; } = "";
         public string Disagree_to_defense { get; set; } = "";
         public string Note { get; set; } = "";

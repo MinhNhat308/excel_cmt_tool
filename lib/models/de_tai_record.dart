@@ -1,3 +1,4 @@
+import '../utils/fugrade_password.dart';
 import 'fg_roster.dart';
 import 'thesis_comment.dart';
 
@@ -55,8 +56,13 @@ class DeTaiRecord {
     required String maNhom,
     required String titleEn,
     required String titleVn,
-    required String danhGia,
-    required String nhanXetSv,
+    String danhGia = '',
+    String nhanXetSv = '',
+    String content = '',
+    String form = '',
+    String attitude = '',
+    String achievement = '',
+    String limitation = '',
   }) {
     this.maDeTai = maDeTai;
     this.maNhom = maNhom;
@@ -64,7 +70,18 @@ class DeTaiRecord {
     this.titleVn = titleVn;
     this.danhGia = danhGia;
     this.nhanXetSv = nhanXetSv;
-    _syncCommentFieldsFromSheet();
+    if (content.isNotEmpty) this.content = content;
+    if (form.isNotEmpty) this.form = form;
+    if (attitude.isNotEmpty) this.attitude = attitude;
+    if (achievement.isNotEmpty) {
+      this.achievement = achievement;
+    } else if (danhGia.isNotEmpty) {
+      this.achievement = danhGia;
+    }
+    if (limitation.isNotEmpty) this.limitation = limitation;
+    if (nhanXetSv.isNotEmpty && this.content.isEmpty) {
+      this.content = nhanXetSv;
+    }
   }
 
   void attachStudentsFromRoster(FgRoster roster) {
@@ -77,26 +94,45 @@ class DeTaiRecord {
     if (resolved.isNotEmpty && resolved != maNhom) {
       maNhom = resolved;
     }
-    students = roster
-        .studentsInGroup(maNhom)
-        .map((s) => s.toThesisStudent())
-        .toList();
+    if (students.isEmpty) {
+      students = roster
+          .studentsInGroup(maNhom)
+          .map((s) => s.toThesisStudent())
+          .toList();
+    } else {
+      mergeStudentsWithRoster(roster);
+    }
   }
 
-  void _syncCommentFieldsFromSheet() {
-    if (nhanXetSv.isNotEmpty) content = nhanXetSv;
-    if (danhGia.isNotEmpty) achievement = danhGia;
+  void mergeStudentsWithRoster(FgRoster roster) {
+    final marksByRoll = <String, ThesisStudent>{};
+    for (final s in students) {
+      final k = s.roll.trim().toUpperCase();
+      if (k.isNotEmpty) marksByRoll[k] = s;
+    }
+    final merged = roster.studentsInGroup(maNhom).map((fg) {
+      final k = fg.roll.trim().toUpperCase();
+      final prev = marksByRoll[k];
+      return ThesisStudent(
+        roll: fg.roll,
+        name: fg.name,
+        agreeToDefense: prev?.agreeToDefense ?? '',
+        revisedForSecondDefense: prev?.revisedForSecondDefense ?? '',
+        disagreeToDefense: prev?.disagreeToDefense ?? '',
+        note: prev?.note ?? '',
+      );
+    }).toList();
+    if (merged.isNotEmpty) students = merged;
   }
 
   ThesisComment toThesisComment() {
-    _syncCommentFieldsFromSheet();
     return ThesisComment(
       teacher: teacher,
       dt: DateTime.now().toIso8601String(),
       subjectCode: subjectCode,
       className: className,
       semester: semester,
-      password: password,
+      password: FugradePassword.forCmtExport(password),
       titleVn: titleVn,
       titleEn: titleEn,
       content: content,
@@ -123,7 +159,21 @@ class DeTaiRecord {
     achievement = t.achievement;
     limitation = t.limitation;
     conclusion = t.conclusion;
-    students = List<ThesisStudent>.from(t.students);
+    if (t.className.isNotEmpty && maNhom.isEmpty) {
+      maNhom = t.className;
+    }
+    students = t.students
+        .map(
+          (s) => ThesisStudent(
+            roll: s.roll,
+            name: s.name,
+            agreeToDefense: s.agreeToDefense,
+            revisedForSecondDefense: s.revisedForSecondDefense,
+            disagreeToDefense: s.disagreeToDefense,
+            note: s.note,
+          ),
+        )
+        .toList();
     if (nhanXetSv.isEmpty && content.isNotEmpty) nhanXetSv = content;
     if (danhGia.isEmpty && achievement.isNotEmpty) danhGia = achievement;
   }
@@ -183,7 +233,7 @@ class DeTaiRecord {
               (e) => ThesisStudent(
                 roll: e['roll']?.toString() ?? '',
                 name: e['name']?.toString() ?? '',
-                agreeToDefense: e['agreeToDefense']?.toString() ?? 'x',
+                agreeToDefense: e['agreeToDefense']?.toString() ?? '',
                 revisedForSecondDefense:
                     e['revisedForSecondDefense']?.toString() ?? '',
                 disagreeToDefense: e['disagreeToDefense']?.toString() ?? '',

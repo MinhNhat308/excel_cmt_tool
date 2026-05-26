@@ -85,4 +85,40 @@ class CmtExportService {
       } catch (_) {}
     }
   }
+
+  Future<ThesisComment> importFromFile(String cmtPath) async {
+    final serializer = locateSerializer();
+    if (serializer == null) {
+      throw StateError('Không tìm thấy CmtSerialize.exe / FuGrade.exe.');
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp('excel_cmt_');
+    final jsonPath = p.join(tempDir.path, 'import.json');
+
+    try {
+      final result = await Process.run(
+        serializer,
+        ['--read-json', cmtPath, jsonPath],
+        runInShell: false,
+      );
+
+      if (result.exitCode != 0) {
+        final err = '${result.stderr}'.trim();
+        throw StateError(
+          err.isEmpty ? 'Đọc .cmt thất bại (mã ${result.exitCode})' : err,
+        );
+      }
+
+      final text = await File(jsonPath).readAsString(encoding: utf8);
+      final j = jsonDecode(text);
+      if (j is! Map<String, dynamic>) {
+        throw StateError('File .cmt không đúng định dạng.');
+      }
+      return ThesisComment.fromExportJson(j);
+    } finally {
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    }
+  }
 }

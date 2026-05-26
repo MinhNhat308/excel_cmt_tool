@@ -1,25 +1,60 @@
 class ThesisStudent {
-  const ThesisStudent({
-    required this.roll,
-    required this.name,
-    this.agreeToDefense = 'x',
+  ThesisStudent({
+    this.roll = '',
+    this.name = '',
+    this.agreeToDefense = '',
     this.revisedForSecondDefense = '',
     this.disagreeToDefense = '',
     this.note = '',
   });
 
-  final String roll;
-  final String name;
-  final String agreeToDefense;
-  final String revisedForSecondDefense;
-  final String disagreeToDefense;
-  final String note;
+  String roll;
+  String name;
+  String agreeToDefense;
+  String revisedForSecondDefense;
+  String disagreeToDefense;
+  String note;
 
   bool get isEmpty => roll.isEmpty && name.isEmpty;
+
+  bool get hasDefenseMark =>
+      isDefenseMark(agreeToDefense) ||
+      isDefenseMark(revisedForSecondDefense) ||
+      isDefenseMark(disagreeToDefense);
+
+  static bool isDefenseMark(String v) {
+    final t = v.trim().toLowerCase();
+    return t == 'x';
+  }
+
+  static String? normalizeDefenseMark(String input) {
+    final t = input.trim();
+    if (t.isEmpty) return '';
+    if (t == 'x' || t == 'X') return 'x';
+    return null;
+  }
+
+  ThesisStudent copyWith({
+    String? roll,
+    String? name,
+    String? agreeToDefense,
+    String? revisedForSecondDefense,
+    String? disagreeToDefense,
+    String? note,
+  }) =>
+      ThesisStudent(
+        roll: roll ?? this.roll,
+        name: name ?? this.name,
+        agreeToDefense: agreeToDefense ?? this.agreeToDefense,
+        revisedForSecondDefense:
+            revisedForSecondDefense ?? this.revisedForSecondDefense,
+        disagreeToDefense: disagreeToDefense ?? this.disagreeToDefense,
+        note: note ?? this.note,
+      );
 }
 
 class ThesisComment {
-  const ThesisComment({
+  ThesisComment({
     this.teacher = '',
     this.dt = '',
     this.subjectCode = '',
@@ -34,26 +69,61 @@ class ThesisComment {
     this.achievement = '',
     this.limitation = '',
     this.conclusion = '',
-    this.students = const [],
-  });
+    List<ThesisStudent>? students,
+  }) : students = students ?? [];
 
-  final String teacher;
-  final String dt;
-  final String subjectCode;
-  final String className;
-  final String semester;
-  final String password;
-  final String titleVn;
-  final String titleEn;
-  final String content;
-  final String form;
-  final String attitude;
-  final String achievement;
-  final String limitation;
-  final String conclusion;
-  final List<ThesisStudent> students;
+  String teacher;
+  String dt;
+  String subjectCode;
+  String className;
+  String semester;
+  String password;
+  String titleVn;
+  String titleEn;
+  String content;
+  String form;
+  String attitude;
+  String achievement;
+  String limitation;
+  String conclusion;
+  List<ThesisStudent> students;
 
   bool get hasStudents => students.isNotEmpty;
+
+  factory ThesisComment.fromExportJson(Map<String, dynamic> j) {
+    final list = <ThesisStudent>[];
+    for (final e in j['students'] as List<dynamic>? ?? []) {
+      final m = Map<String, dynamic>.from(e as Map);
+      list.add(
+        ThesisStudent(
+          roll: m['roll']?.toString() ?? '',
+          name: m['name']?.toString() ?? '',
+          agreeToDefense: m['agreeToDefense']?.toString() ?? '',
+          revisedForSecondDefense:
+              m['revisedForSecondDefense']?.toString() ?? '',
+          disagreeToDefense: m['disagreeToDefense']?.toString() ?? '',
+          note: m['note']?.toString() ?? '',
+        ),
+      );
+    }
+    return ThesisComment(
+      teacher: j['teacher']?.toString() ?? '',
+      dt: j['dt']?.toString() ?? '',
+      subjectCode: j['subjectCode']?.toString() ?? '',
+      className: j['className']?.toString() ?? '',
+      semester: j['semester']?.toString() ?? '',
+      password: j['password']?.toString() ?? '',
+      titleVn: j['titleVn']?.toString() ?? '',
+      titleEn: j['titleEn']?.toString() ?? '',
+      content: j['content']?.toString() ?? '',
+      form: j['form']?.toString() ?? '',
+      attitude: j['attitude']?.toString() ?? '',
+      achievement: j['achievement']?.toString() ?? '',
+      limitation: j['limitation']?.toString() ?? '',
+      conclusion: j['conclusion']?.toString() ?? '',
+      students: list,
+    );
+  }
 
   Map<String, dynamic> toExportJson() => {
         'teacher': teacher,
