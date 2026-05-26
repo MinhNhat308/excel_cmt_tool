@@ -402,7 +402,7 @@ class _ThesisWorkbenchScreenState extends State<ThesisWorkbenchScreen> {
         ],
       ),
       body: DecoratedBox(
-        decoration: AppTheme.pageGradient(context),
+        decoration: AppTheme.pageBackground(context),
         child: SafeArea(
           child: Column(
             children: [

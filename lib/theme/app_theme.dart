@@ -90,19 +90,10 @@ class AppTheme {
     );
   }
 
-  static BoxDecoration pageGradient(BuildContext context) {
+  static BoxDecoration pageBackground(BuildContext context) {
     final c = Theme.of(context).colorScheme;
     return BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          c.primary.withOpacity(0.08),
-          c.secondary.withOpacity(0.06),
-          c.surface,
-        ],
-        stops: const [0.0, 0.4, 1.0],
-      ),
+      color: c.surface,
     );
   }
 
