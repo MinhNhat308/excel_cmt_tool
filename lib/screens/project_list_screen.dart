@@ -56,22 +56,31 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
             : 'Hệ thống Quản lý Đề tài'),
         actions: [
           IconButton(
-            tooltip: 'Lưu thay đổi tệp .fg',
-            icon: const Icon(Icons.save_rounded),
+            tooltip: 'Xuất tệp .fg (Lưu mới)',
+            icon: const Icon(Icons.save_as_rounded),
             onPressed: () async {
-              final success = await notifier.saveToCurrentFile();
+              final path = await FilePicker.platform.saveFile(
+                dialogTitle: 'Xuất file dự án .fg',
+                fileName: 'fuge_project_${DateTime.now().millisecondsSinceEpoch}.fg',
+                type: FileType.custom,
+                allowedExtensions: const ['fg'],
+              );
+              if (path == null) return;
+              final finalPath = path.toLowerCase().endsWith('.fg') ? path : '$path.fg';
+
+              final success = await notifier.saveToNewFile(finalPath);
               if (!mounted) return;
               if (success) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Đã lưu thay đổi thành công!'),
+                  SnackBar(
+                    content: Text('Đã xuất thành công: ${p.basename(finalPath)}'),
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Lưu thất bại: ${state.error ?? "Lỗi không xác định"}'),
+                    content: Text('Xuất thất bại: ${state.error ?? "Lỗi không xác định"}'),
                     backgroundColor: Colors.red,
                     behavior: SnackBarBehavior.floating,
                   ),

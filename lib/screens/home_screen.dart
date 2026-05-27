@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/ai_service.dart';
 import '../services/project_provider.dart';
 import '../theme/app_theme.dart';
 import 'project_list_screen.dart';
@@ -103,6 +104,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _showAiSettingsDialog(BuildContext context) async {
+    final ctrl = TextEditingController(text: AIService.instance.currentApiKey);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cài đặt AI (Google Gemini)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Nhập API Key của Google Gemini để sử dụng tính năng viết nhận xét tự động.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(
+                labelText: 'Gemini API Key',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.key_rounded),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ĐÓNG'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await AIService.instance.saveApiKey(ctrl.text);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đã lưu API Key!')),
+                );
+              }
+            },
+            child: const Text('LƯU'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -114,6 +161,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: const Text('FUGE Tool — Quản lý Đánh giá Khóa luận'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_suggest_rounded),
+            tooltip: 'Cài đặt trợ lý AI',
+            onPressed: () => _showAiSettingsDialog(context),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: DecoratedBox(
         decoration: AppTheme.pageGradient(context),
@@ -210,13 +265,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 60),
-
-                        // Footer versioning info
-                        Text(
-                          'Phiên bản 1.0.0 — Phát triển bởi Antigravity',
-                          style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant.withOpacity(0.5)),
-                          textAlign: TextAlign.center,
-                        ),
                       ],
                     ),
                   ),

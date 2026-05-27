@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+import 'services/ai_service.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AIService.instance.init();
   runApp(
     const ProviderScope(
       child: ExcelCmtApp(),

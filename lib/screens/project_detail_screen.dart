@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/project_provider.dart';
+import '../services/ai_service.dart';
 import '../theme/app_theme.dart';
 
 class ProjectDetailScreen extends ConsumerStatefulWidget {
@@ -37,6 +38,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
 
   // Selection state for students list (left side)
   int _selectedStudentIndex = 0;
+
 
   @override
   void initState() {
@@ -513,62 +515,51 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                               ),
                               const SizedBox(height: 20),
 
-                              TextField(
+                              _AIEnhancedTextField(
                                 controller: _contentController,
                                 maxLines: 4,
-                                decoration: const InputDecoration(
-                                  labelText: '3.1 Nội dung khóa luận (so với mục tiêu nghiên cứu, cơ sở lý luận, số liệu, phân tích, tính ứng dụng)',
-                                  alignLabelWithHint: true,
-                                ),
+                                fieldName: 'Nội dung khóa luận',
+                                labelText: '3.1 Nội dung khóa luận (so với mục tiêu nghiên cứu, cơ sở lý luận, số liệu, phân tích, tính ứng dụng)',
                               ),
                               const SizedBox(height: 16),
 
-                              TextField(
+                              _AIEnhancedTextField(
                                 controller: _formController,
                                 maxLines: 3,
-                                decoration: const InputDecoration(
-                                  labelText: '3.2 Hình thức thảo luận (bố cục, phương pháp trình bày, tiếng Anh, trích dẫn)',
-                                  alignLabelWithHint: true,
-                                ),
+                                fieldName: 'Hình thức thảo luận',
+                                labelText: '3.2 Hình thức thảo luận (bố cục, phương pháp trình bày, tiếng Anh, trích dẫn)',
                               ),
                               const SizedBox(height: 16),
 
-                              TextField(
+                              _AIEnhancedTextField(
                                 controller: _attitudeController,
                                 maxLines: 3,
-                                decoration: const InputDecoration(
-                                  labelText: '3.3 Thái độ của sinh viên trong quá trình làm khóa luận (tinh thần, thái độ của cả nhóm và từng thành viên trong nhóm, vai trò và đóng góp của từng thành viên trong nhóm)',
-                                  alignLabelWithHint: true,
-                                ),
+                                fieldName: 'Thái độ của sinh viên',
+                                labelText: '3.3 Thái độ của sinh viên trong quá trình làm khóa luận (tinh thần, thái độ của cả nhóm và từng thành viên trong nhóm, vai trò và đóng góp của từng thành viên trong nhóm)',
                               ),
                               const SizedBox(height: 16),
 
-                              TextField(
+                              _AIEnhancedTextField(
                                 controller: _achievementController,
-                                decoration: const InputDecoration(
-                                  labelText: '4.1 Đạt ở mức nào?',
-                                  prefixIcon: Icon(Icons.verified_outlined),
-                                ),
+                                fieldName: 'Đạt ở mức nào',
+                                labelText: '4.1 Đạt ở mức nào?',
+                                prefixIcon: const Icon(Icons.verified_outlined),
                               ),
                               const SizedBox(height: 16),
                               
-                              TextField(
+                              _AIEnhancedTextField(
                                 controller: _conclusionController,
                                 maxLines: 3,
-                                decoration: const InputDecoration(
-                                  labelText: 'Nhận xét',
-                                  alignLabelWithHint: true,
-                                ),
+                                fieldName: 'Nhận xét chung',
+                                labelText: 'Nhận xét',
                               ),
                               const SizedBox(height: 16),
 
-                              TextField(
+                              _AIEnhancedTextField(
                                 controller: _limitationController,
                                 maxLines: 3,
-                                decoration: const InputDecoration(
-                                  labelText: '4.2 Hạn chế',
-                                  alignLabelWithHint: true,
-                                ),
+                                fieldName: 'Hạn chế',
+                                labelText: '4.2 Hạn chế',
                               ),
                             ],
                           ),
@@ -784,6 +775,141 @@ class _TitleConflictSyncCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AIEnhancedTextField extends StatefulWidget {
+  const _AIEnhancedTextField({
+    required this.controller,
+    required this.labelText,
+    required this.fieldName,
+    this.maxLines = 1,
+    this.prefixIcon,
+  });
+
+  final TextEditingController controller;
+  final String labelText;
+  final String fieldName;
+  final int maxLines;
+  final Widget? prefixIcon;
+
+  @override
+  State<_AIEnhancedTextField> createState() => _AIEnhancedTextFieldState();
+}
+
+class _AIEnhancedTextFieldState extends State<_AIEnhancedTextField> {
+  bool _showPromptInput = false;
+  bool _isGenerating = false;
+  final TextEditingController _promptController = TextEditingController();
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generateAI() async {
+    if (_promptController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng gõ vài từ khóa nháp vào ô màu tím.')),
+      );
+      return;
+    }
+    setState(() => _isGenerating = true);
+    try {
+      final generated = await AIService.instance.generateEvaluation(
+        widget.fieldName,
+        _promptController.text,
+      );
+      if (generated.isNotEmpty) {
+        widget.controller.text = generated;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('AI đã sinh thành công! Bạn có thể tạo lại nếu chưa ưng ý.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_showPromptInput)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _promptController,
+                    decoration: InputDecoration(
+                      labelText: 'Từ khóa nháp cho ${widget.fieldName}...',
+                      filled: true,
+                      fillColor: Colors.purple.withOpacity(0.05),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.edit_note, color: Colors.purple),
+                    ),
+                    maxLines: 2,
+                    minLines: 1,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _isGenerating
+                    ? const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : IconButton.filledTonal(
+                        icon: const Icon(Icons.auto_awesome_rounded, color: Colors.purple),
+                        tooltip: 'Tạo nhận xét',
+                        onPressed: _generateAI,
+                      ),
+              ],
+            ),
+          ),
+        Stack(
+          children: [
+            TextField(
+              controller: widget.controller,
+              maxLines: widget.maxLines,
+              decoration: InputDecoration(
+                labelText: widget.labelText,
+                alignLabelWithHint: widget.maxLines > 1,
+                prefixIcon: widget.prefixIcon,
+                contentPadding: EdgeInsets.only(
+                  left: widget.prefixIcon != null ? 0 : 12,
+                  top: 16,
+                  bottom: 16,
+                  right: 48,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 4,
+              top: widget.maxLines > 1 ? 4 : 4,
+              child: IconButton(
+                icon: Icon(
+                  _showPromptInput ? Icons.keyboard_arrow_up : Icons.auto_awesome_outlined,
+                  color: _showPromptInput ? Colors.grey : Colors.purple,
+                ),
+                tooltip: _showPromptInput ? 'Ẩn ô nhập nháp' : 'Mở ô nhập từ khóa AI',
+                onPressed: () {
+                  setState(() => _showPromptInput = !_showPromptInput);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

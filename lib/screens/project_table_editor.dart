@@ -50,35 +50,24 @@ class _ProjectTableEditorState extends ConsumerState<ProjectTableEditor> {
   Future<void> _saveFile() async {
     _saveMetadata();
     final notifier = ref.read(projectListProvider.notifier);
-    final state = ref.read(projectListProvider);
-
-    if (state.filePath.isNotEmpty) {
-      final success = await notifier.saveToCurrentFile();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Đã lưu file thành công!' : 'Có lỗi khi lưu file.'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
-    } else {
-      final path = await FilePicker.platform.saveFile(
-        dialogTitle: 'Lưu file cấu hình .fg',
-        fileName: 'danh_sach_de_tai.fg',
-        type: FileType.custom,
-        allowedExtensions: const ['fg'],
-      );
-      if (path == null) return;
-      final fullPath = path.toLowerCase().endsWith('.fg') ? path : '$path.fg';
-      final success = await notifier.saveToNewFile(fullPath);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Đã tạo và lưu file .fg thành công!' : 'Có lỗi khi lưu file.'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
-    }
+    
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Xuất file dự án .fg',
+      fileName: 'fuge_project_${DateTime.now().millisecondsSinceEpoch}.fg',
+      type: FileType.custom,
+      allowedExtensions: const ['fg'],
+    );
+    if (path == null) return;
+    final fullPath = path.toLowerCase().endsWith('.fg') ? path : '$path.fg';
+    
+    final success = await notifier.saveToNewFile(fullPath);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Đã xuất và lưu file .fg thành công!' : 'Có lỗi khi xuất file.'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
   }
 
   void _addNewProject() {
