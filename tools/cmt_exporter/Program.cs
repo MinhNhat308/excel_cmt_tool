@@ -89,7 +89,7 @@ namespace FuGrade
                     {
                         Roll = s.roll ?? "",
                         Name = s.name ?? "",
-                        Agree_to_defense = string.IsNullOrEmpty(s.agreeToDefense) ? "x" : s.agreeToDefense,
+                        Agree_to_defense = s.agreeToDefense ?? "",
                         Revised_for_the_second_defense = s.revisedForSecondDefense ?? "",
                         Disagree_to_defense = s.disagreeToDefense ?? "",
                         Note = s.note ?? "",
@@ -111,7 +111,9 @@ namespace FuGrade
                 Content = dto.content ?? "",
                 Form = dto.form ?? "",
                 Attitude = dto.attitude ?? "",
-                Achievement = dto.achievement ?? "",
+                Achievement = string.IsNullOrWhiteSpace(dto.conclusion) 
+                                ? (dto.achievement ?? "") 
+                                : ((dto.achievement ?? "") + "\nNhận xét: " + dto.conclusion).Trim(),
                 Limitation = dto.limitation ?? "",
                 Conclusion = students,
             };

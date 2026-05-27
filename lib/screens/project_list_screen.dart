@@ -6,6 +6,7 @@ import 'package:excel_cmt_tool/screens/project_detail_screen.dart';
 import 'package:excel_cmt_tool/screens/project_table_editor.dart';
 import 'package:excel_cmt_tool/services/cmt_export_service.dart';
 import 'package:excel_cmt_tool/services/survey_import_service.dart';
+import 'package:excel_cmt_tool/services/excel_export_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,13 +63,17 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               if (!mounted) return;
               if (success) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã lưu thay đổi thành công!')),
+                  const SnackBar(
+                    content: Text('Đã lưu thay đổi thành công!'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Lưu thất bại: ${state.error ?? "Lỗi không xác định"}'),
                     backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
                   ),
                 );
               }
@@ -143,6 +148,8 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               _BottomActionsBar(
                 onImportSurveys: _showImportDialog,
                 onExportAllCmt: () => _exportAllCmt(state),
+                onExportExcel: () => _exportToExcel(state),
+                onClearEvaluations: () => _showClearEvaluationsDialog(ref),
                 projectsCount: state.projects.length,
                 scheme: scheme,
                 t: t,
@@ -229,7 +236,12 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     final regex = RegExp(r'/spreadsheets/d/([a-zA-Z0-9-_]+)');
     final match = regex.firstMatch(link);
     if (match == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link Google Sheet không hợp lệ.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link Google Sheet không hợp lệ.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     final sheetId = match.group(1);
@@ -256,12 +268,22 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
       if (response.statusCode == 200 && bytes.isNotEmpty) {
         _processExcelBytes(bytes);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không thể tải file. Hãy đảm bảo Google Sheet đã được Bật chia sẻ "Bất kỳ ai có liên kết".')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể tải file. Hãy đảm bảo Google Sheet đã được Bật chia sẻ "Bất kỳ ai có liên kết".'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi mạng: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi mạng: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -285,7 +307,10 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     }
     ref.read(projectListProvider.notifier).importStudentSurveys(result.rows);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Đã đối sánh và cập nhật dữ liệu của ${result.rows.length} sinh viên!')),
+      SnackBar(
+        content: Text('Đã đối sánh và cập nhật dữ liệu của ${result.rows.length} sinh viên!'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -295,7 +320,10 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     
     if (state.projects.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không có đề tài nào để xuất.')),
+        const SnackBar(
+          content: Text('Không có đề tài nào để xuất.'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
@@ -332,7 +360,10 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     final toExport = state.projects.where((p) => p.validationStatus == 'VALID').toList();
     if (toExport.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không có đề tài VALID nào khả dụng để xuất.')),
+        const SnackBar(
+          content: Text('Không có đề tài VALID nào khả dụng để xuất.'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
@@ -408,6 +439,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           attitude: project.gvEvaluation.attitude,
           achievement: project.gvEvaluation.achievement,
           limitation: project.gvEvaluation.limitation,
+          conclusion: project.gvEvaluation.conclusion,
           students: tstudents,
         );
 
@@ -430,6 +462,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
             SnackBar(
               content: Text('Đã xuất thành công ${toExport.length} file .cmt vào ZIP:\n$finalZipPath'),
               backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -452,6 +485,85 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
         );
       }
     }
+  }
+
+  Future<void> _exportToExcel(ProjectListState state) async {
+    final toExport = state.projects.where((p) => p.students.isNotEmpty).toList();
+    if (toExport.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không có đề tài nào để xuất Excel.')),
+      );
+      return;
+    }
+
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Xuất file Excel danh sách đề tài',
+      fileName: 'DanhSachDeTai.xlsx',
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx'],
+    );
+    if (path == null) return;
+    
+    final finalPath = path.toLowerCase().endsWith('.xlsx') ? path : '$path.xlsx';
+
+    try {
+      final excelExport = ExcelExportService();
+      final bytes = await excelExport.generateExcelBytes(toExport);
+      await File(finalPath).writeAsBytes(bytes, flush: true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xuất thành công Excel vào:\n$finalPath'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Có lỗi xảy ra khi xuất Excel: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showClearEvaluationsDialog(WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa trắng dữ liệu nhận xét'),
+        content: const Text(
+          'Hành động này sẽ xóa sạch toàn bộ điểm, nhận xét, và kết luận bảo vệ của TẤT CẢ các nhóm đề tài.\n\n'
+          'Chỉ có danh sách sinh viên và mã nhóm là được giữ lại. Bạn có chắc chắn muốn tiếp tục không?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('HỦY BỎ'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              ref.read(projectListProvider.notifier).clearAllEvaluations();
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Đã làm mới lại toàn bộ dữ liệu nhận xét!'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('XÓA TRẮNG'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<String?> _showPasswordPrompt() async {
@@ -525,7 +637,6 @@ class _MetadataHeaderPanel extends StatelessWidget {
               children: [
                 _MetaItem(icon: Icons.person_rounded, label: 'GVHD', value: state.teacher, t: t, scheme: scheme),
                 _MetaItem(icon: Icons.calendar_month_rounded, label: 'Học kỳ', value: state.semester, t: t, scheme: scheme),
-                _MetaItem(icon: Icons.school_rounded, label: 'Lớp', value: state.className, t: t, scheme: scheme),
                 _MetaItem(icon: Icons.code_rounded, label: 'Mã môn', value: state.subjectCode, t: t, scheme: scheme),
               ],
             ),
@@ -793,6 +904,8 @@ class _BottomActionsBar extends StatelessWidget {
   const _BottomActionsBar({
     required this.onImportSurveys,
     required this.onExportAllCmt,
+    required this.onExportExcel,
+    required this.onClearEvaluations,
     required this.projectsCount,
     required this.scheme,
     required this.t,
@@ -800,6 +913,8 @@ class _BottomActionsBar extends StatelessWidget {
 
   final VoidCallback onImportSurveys;
   final VoidCallback onExportAllCmt;
+  final VoidCallback onExportExcel;
+  final VoidCallback onClearEvaluations;
   final int projectsCount;
   final ColorScheme scheme;
   final TextTheme t;
@@ -819,21 +934,32 @@ class _BottomActionsBar extends StatelessWidget {
             'Tổng cộng: $projectsCount nhóm đề tài',
             style: t.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
-          Wrap(
-            spacing: 12,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onImportSurveys,
-                icon: const Icon(Icons.merge_type_rounded),
-                label: const Text('Nhập file Excel/Sheet đề tài'),
+              Wrap(
+                spacing: 12,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onClearEvaluations,
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+                    icon: const Icon(Icons.cleaning_services_rounded),
+                    label: const Text('Xóa dữ liệu nhận xét'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onImportSurveys,
+                    icon: const Icon(Icons.merge_type_rounded),
+                    label: const Text('Nhập file Excel/Sheet'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onExportExcel,
+                    icon: const Icon(Icons.table_chart_rounded),
+                    label: const Text('Xuất Excel'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: onExportAllCmt,
+                    icon: const Icon(Icons.archive_rounded),
+                    label: const Text('XUẤT ZIP'),
+                  ),
+                ],
               ),
-              FilledButton.icon(
-                onPressed: onExportAllCmt,
-                icon: const Icon(Icons.archive_rounded),
-                label: const Text('XUẤT TẤT CẢ FILE .CMT (ZIP)'),
-              ),
-            ],
-          ),
         ],
       ),
     );

@@ -138,6 +138,18 @@ class ProjectNotifier extends StateNotifier<ProjectListState> {
     _validateAllProjects();
   }
 
+  // Xóa toàn bộ dữ liệu nhận xét (làm mới)
+  void clearAllEvaluations() {
+    final updated = state.projects.map((p) => p.copyWith(
+      topicCode: '',
+      titleVn: '',
+      titleEn: '',
+      gvEvaluation: const GvEvaluationModel(),
+    )).toList();
+    state = state.copyWith(projects: updated);
+    _validateAllProjects();
+  }
+
   // Xóa sinh viên khỏi một dự án
   void removeStudentFromProject(int projectIndex, int studentIndex) {
     if (projectIndex < 0 || projectIndex >= state.projects.length) return;
@@ -215,6 +227,7 @@ class ProjectNotifier extends StateNotifier<ProjectListState> {
           attitude: surveyByGroup.attitude.isNotEmpty ? surveyByGroup.attitude : newGvEval.attitude,
           achievement: surveyByGroup.achievement.isNotEmpty ? surveyByGroup.achievement : newGvEval.achievement,
           limitation: surveyByGroup.limitation.isNotEmpty ? surveyByGroup.limitation : newGvEval.limitation,
+          conclusion: surveyByGroup.conclusion.isNotEmpty ? surveyByGroup.conclusion : newGvEval.conclusion,
         );
       } else {
         // Nếu không tìm thấy qua mã nhóm, thử tìm qua từng sinh viên
@@ -232,6 +245,7 @@ class ProjectNotifier extends StateNotifier<ProjectListState> {
             attitude: survey.attitude.isNotEmpty ? survey.attitude : newGvEval.attitude,
             achievement: survey.achievement.isNotEmpty ? survey.achievement : newGvEval.achievement,
             limitation: survey.limitation.isNotEmpty ? survey.limitation : newGvEval.limitation,
+            conclusion: survey.conclusion.isNotEmpty ? survey.conclusion : newGvEval.conclusion,
           );
           
           break; // Giả định cả nhóm có chung đề tài

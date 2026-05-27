@@ -4,18 +4,23 @@ import 'package:excel_cmt_tool/services/cmt_export_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/project_model.dart';
+import '../services/project_provider.dart';
+import 'project_detail_screen.dart';
+
 import '../theme/app_theme.dart';
 
-class CmtViewerScreen extends StatefulWidget {
+class CmtViewerScreen extends ConsumerStatefulWidget {
   const CmtViewerScreen({super.key, this.initialFilePath});
 
   final String? initialFilePath;
 
   @override
-  State<CmtViewerScreen> createState() => _CmtViewerScreenState();
+  ConsumerState<CmtViewerScreen> createState() => _CmtViewerScreenState();
 }
 
-class _CmtViewerScreenState extends State<CmtViewerScreen> {
+class _CmtViewerScreenState extends ConsumerState<CmtViewerScreen> {
   final _cmtExport = CmtExportService();
   final _passwordController = TextEditingController();
 
@@ -128,6 +133,45 @@ class _CmtViewerScreenState extends State<CmtViewerScreen> {
     }
   }
 
+  void _editComment() {
+    if (_comment == null) return;
+    final notifier = ref.read(projectListProvider.notifier);
+    
+    final newProj = ProjectModel(
+      topicCode: '',
+      groupCode: 'CMT_EDIT', 
+      titleVn: _comment!.titleVn,
+      titleEn: _comment!.titleEn,
+      students: _comment!.students.map((s) => StudentModel(roll: s.roll, name: s.name)).toList(),
+      gvEvaluation: GvEvaluationModel(
+        content: _comment!.content,
+        form: _comment!.form,
+        attitude: _comment!.attitude,
+        achievement: _comment!.achievement,
+        limitation: _comment!.limitation,
+        conclusion: _comment!.conclusion,
+        studentVerdicts: _comment!.students.map((s) => StudentVerdictModel(
+          roll: s.roll,
+          agreeToDefense: s.agreeToDefense.toLowerCase() == 'x',
+          revisedForSecondDefense: s.revisedForSecondDefense.toLowerCase() == 'x',
+          disagreeToDefense: s.disagreeToDefense.toLowerCase() == 'x',
+          note: s.note,
+        )).toList(),
+      ),
+    );
+
+    notifier.addProject(newProj);
+    final state = ref.read(projectListProvider);
+    final newIndex = state.projects.length - 1;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (context) => ProjectDetailScreen(projectIndex: newIndex),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
@@ -220,6 +264,11 @@ class _CmtViewerScreenState extends State<CmtViewerScreen> {
                               onPressed: () => Navigator.pop(context),
                               icon: const Icon(Icons.arrow_back),
                               label: const Text('QUAY LẠI'),
+                            ),
+                            FilledButton.tonalIcon(
+                              onPressed: _editComment,
+                              icon: const Icon(Icons.edit_rounded),
+                              label: const Text('CHỈNH SỬA'),
                             ),
                             FilledButton.icon(
                               onPressed: _pickAndLoadFile,

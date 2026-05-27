@@ -27,6 +27,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
   final _attitudeController = TextEditingController();
   final _achievementController = TextEditingController();
   final _limitationController = TextEditingController();
+  final _conclusionController = TextEditingController();
 
   // Verdict notes mapping: roll -> controller
   final _verdictNotes = <String, TextEditingController>{};
@@ -55,6 +56,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     _attitudeController.text = eval.attitude;
     _achievementController.text = eval.achievement;
     _limitationController.text = eval.limitation;
+    _conclusionController.text = eval.conclusion;
 
     // Load student verdicts
     for (final s in project.students) {
@@ -84,6 +86,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     _attitudeController.dispose();
     _achievementController.dispose();
     _limitationController.dispose();
+    _conclusionController.dispose();
     for (final c in _verdictNotes.values) {
       c.dispose();
     }
@@ -112,6 +115,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
       attitude: _attitudeController.text.trim(),
       achievement: _achievementController.text.trim(),
       limitation: _limitationController.text.trim(),
+      conclusion: _conclusionController.text.trim(),
       studentVerdicts: verdicts,
     );
 
@@ -121,7 +125,10 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã lưu thông tin đánh giá của Giảng viên!')),
+      const SnackBar(
+        content: Text('Đã lưu thông tin đánh giá của Giảng viên!'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -175,6 +182,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
         attitude: _attitudeController.text.trim(),
         achievement: _achievementController.text.trim(),
         limitation: _limitationController.text.trim(),
+        conclusion: _conclusionController.text.trim(),
         students: tstudents,
       );
 
@@ -185,6 +193,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
         SnackBar(
           content: Text('Đã xuất thành công file .cmt:\n$fullPath'),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -228,6 +237,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
         _attitudeController.text = thesis.attitude;
         _achievementController.text = thesis.achievement;
         _limitationController.text = thesis.limitation;
+        _conclusionController.text = thesis.conclusion;
 
         for (final s in thesis.students) {
           _verdictNotes[s.roll]?.text = s.note;
@@ -243,7 +253,10 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã tải và điền nhanh nội dung từ file .cmt cũ!')),
+        const SnackBar(
+          content: Text('Đã tải và điền nhanh nội dung từ file .cmt cũ!'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -504,7 +517,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _contentController,
                                 maxLines: 4,
                                 decoration: const InputDecoration(
-                                  labelText: '3.1 Nội dung khóa luận',
+                                  labelText: '3.1 Nội dung khóa luận (so với mục tiêu nghiên cứu, cơ sở lý luận, số liệu, phân tích, tính ứng dụng)',
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -514,7 +527,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _formController,
                                 maxLines: 3,
                                 decoration: const InputDecoration(
-                                  labelText: '3.2 Hình thức thảo luận',
+                                  labelText: '3.2 Hình thức thảo luận (bố cục, phương pháp trình bày, tiếng Anh, trích dẫn)',
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -524,7 +537,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                                 controller: _attitudeController,
                                 maxLines: 3,
                                 decoration: const InputDecoration(
-                                  labelText: '3.3 Thái độ của sinh viên',
+                                  labelText: '3.3 Thái độ của sinh viên trong quá trình làm khóa luận (tinh thần, thái độ của cả nhóm và từng thành viên trong nhóm, vai trò và đóng góp của từng thành viên trong nhóm)',
                                   alignLabelWithHint: true,
                                 ),
                               ),
@@ -533,8 +546,18 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
                               TextField(
                                 controller: _achievementController,
                                 decoration: const InputDecoration(
-                                  labelText: '4.1 Đạt ở mức nào? / Nhận xét',
+                                  labelText: '4.1 Đạt ở mức nào?',
                                   prefixIcon: Icon(Icons.verified_outlined),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              TextField(
+                                controller: _conclusionController,
+                                maxLines: 3,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nhận xét',
+                                  alignLabelWithHint: true,
                                 ),
                               ),
                               const SizedBox(height: 16),

@@ -17,6 +17,7 @@ class SurveyRow {
   final String attitude;
   final String achievement;
   final String limitation;
+  final String conclusion;
 
   const SurveyRow({
     this.roll = '',
@@ -32,6 +33,7 @@ class SurveyRow {
     this.attitude = '',
     this.achievement = '',
     this.limitation = '',
+    this.conclusion = '',
   });
 }
 
@@ -95,8 +97,8 @@ class SurveyImportService {
       final colEmail = _findColumn(headerRow, _emailKeys);
       final colGroup = _findColumn(headerRow, _groupKeys);
       final colTopic = _findColumn(headerRow, _topicKeys);
-      final colTitleVn = _findColumnContains(headerRow, ['1.1', 'viet', 'vn', 'vietnamese']);
-      final colTitleEn = _findColumnContains(headerRow, ['1.2', 'english', 'en', 'anh']);
+      final colTitleVn = _findColumnContains(headerRow, ['1.1', 'tieng viet', 'vietnamese']);
+      final colTitleEn = _findColumnContains(headerRow, ['1.2', 'english', 'tieng anh']);
       final colEval = _findColumnContains(headerRow, ['student evaluation', 'nhan xet cua sinh vien']);
       
       // Teacher evaluation columns
@@ -104,7 +106,8 @@ class SurveyImportService {
       final colForm = _findColumnContains(headerRow, ['3.2', 'hinh thuc thao luan', 'hinh thuc']);
       final colAttitude = _findColumnContains(headerRow, ['3.3', 'thai do cua sinh vien', 'thai do']);
       // 4.1 Đạt ở mức nào hoặc Nhận xét
-      final colAchievement = _findColumnContains(headerRow, ['4.1', 'dat o muc nao', 'nhan xet']);
+      final colAchievement = _findColumnContains(headerRow, ['4.1', 'dat o muc nao']);
+      final colConclusion = _findColumnContains(headerRow, ['nhan xet']);
       final colLimitation = _findColumnContains(headerRow, ['4.2', 'han che']);
 
       final result = <SurveyRow>[];
@@ -133,6 +136,7 @@ class SurveyImportService {
           attitude: _cell(row, colAttitude),
           achievement: _cell(row, colAchievement),
           limitation: _cell(row, colLimitation),
+          conclusion: _cell(row, colConclusion),
         ));
       }
 

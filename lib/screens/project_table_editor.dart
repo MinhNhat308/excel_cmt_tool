@@ -185,17 +185,6 @@ class _ProjectTableEditorState extends ConsumerState<ProjectTableEditor> {
                               onChanged: (_) => _saveMetadata(),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _classController,
-                              decoration: const InputDecoration(
-                                labelText: 'Tên lớp',
-                                prefixIcon: Icon(Icons.class_rounded),
-                              ),
-                              onChanged: (_) => _saveMetadata(),
-                            ),
-                          ),
                         ],
                       ),
                     ],
@@ -294,42 +283,67 @@ class _ProjectTableBlock extends ConsumerWidget {
             // Header nhóm đề tài
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: _getStatusColor(project.validationStatus).withOpacity(0.1),
-                  child: Text(
-                    project.topicCode.isEmpty ? '?' : project.topicCode,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: _getStatusColor(project.validationStatus),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Text(
-                            'Nhóm: ',
-                            style: t.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Mã đề tài: ',
+                                  style: t.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+                                ),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 32,
+                                    child: TextField(
+                                      controller: TextEditingController(text: project.topicCode)
+                                        ..selection = TextSelection.collapsed(offset: project.topicCode.length),
+                                      style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 4),
+                                        border: UnderlineInputBorder(),
+                                      ),
+                                      onChanged: (val) {
+                                        notifier.updateProjectField(projectIndex, topicCode: val.trim());
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          SizedBox(
-                            width: 80,
-                            height: 32,
-                            child: TextField(
-                              controller: TextEditingController(text: project.groupCode)
-                                ..selection = TextSelection.collapsed(offset: project.groupCode.length),
-                              style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(vertical: 4),
-                                border: UnderlineInputBorder(),
-                              ),
-                              onChanged: (val) {
-                                notifier.updateProjectField(projectIndex, groupCode: val.trim());
-                              },
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Nhóm: ',
+                                  style: t.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+                                ),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 32,
+                                    child: TextField(
+                                      controller: TextEditingController(text: project.groupCode)
+                                        ..selection = TextSelection.collapsed(offset: project.groupCode.length),
+                                      style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 4),
+                                        border: UnderlineInputBorder(),
+                                      ),
+                                      onChanged: (val) {
+                                        notifier.updateProjectField(projectIndex, groupCode: val.trim());
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -452,7 +466,7 @@ class _ProjectTableBlock extends ConsumerWidget {
                       children: [
                         _buildTableHeaderCell('MSSV (Roll)', t, scheme),
                         _buildTableHeaderCell('Họ & Tên', t, scheme),
-                        _buildTableHeaderCell('Email liên hệ', t, scheme),
+                        _buildTableHeaderCell('Kết luận bảo vệ', t, scheme),
                         const SizedBox.shrink(),
                       ],
                     ),
@@ -483,14 +497,32 @@ class _ProjectTableBlock extends ConsumerWidget {
                               );
                             },
                           ),
-                          _buildEditableTableCell(
-                            text: student.email,
-                            hint: 'Email...',
+                          _buildVerdictDropdownCell(
+                            verdict: project.gvEvaluation.studentVerdicts.firstWhere(
+                              (v) => v.roll == student.roll,
+                              orElse: () => StudentVerdictModel(roll: student.roll),
+                            ),
                             onChanged: (val) {
-                              notifier.updateStudentInProject(
+                              final verdicts = List<StudentVerdictModel>.from(project.gvEvaluation.studentVerdicts);
+                              final idx = verdicts.indexWhere((v) => v.roll == student.roll);
+                              final newVerdict = StudentVerdictModel(
+                                roll: student.roll,
+                                agreeToDefense: val == 0,
+                                revisedForSecondDefense: val == 1,
+                                disagreeToDefense: val == 2,
+                                note: idx >= 0 ? verdicts[idx].note : '',
+                              );
+                              if (idx >= 0) {
+                                verdicts[idx] = newVerdict;
+                              } else {
+                                verdicts.add(newVerdict);
+                              }
+
+                              notifier.updateProject(
                                 projectIndex,
-                                studentIndex,
-                                student.copyWith(email: val.trim()),
+                                project.copyWith(
+                                  gvEvaluation: project.gvEvaluation.copyWith(studentVerdicts: verdicts),
+                                ),
                               );
                             },
                           ),
@@ -564,6 +596,37 @@ class _ProjectTableBlock extends ConsumerWidget {
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(vertical: 6),
         ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildVerdictDropdownCell({
+    required StudentVerdictModel verdict,
+    required ValueChanged<int?> onChanged,
+  }) {
+    int currentValue = 0; // Default to 'Đồng ý bảo vệ'
+    if (verdict.revisedForSecondDefense) currentValue = 1;
+    else if (verdict.disagreeToDefense) currentValue = 2;
+    else if (verdict.agreeToDefense) currentValue = 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
+      child: DropdownButtonFormField<int>(
+        value: currentValue,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 6),
+        ),
+        isExpanded: true,
+        style: const TextStyle(fontSize: 13, color: Colors.black),
+        items: const [
+          DropdownMenuItem(value: -1, child: Text('Chưa đánh giá', overflow: TextOverflow.ellipsis)),
+          DropdownMenuItem(value: 0, child: Text('Đồng ý bảo vệ', overflow: TextOverflow.ellipsis)),
+          DropdownMenuItem(value: 1, child: Text('Sửa chữa', overflow: TextOverflow.ellipsis)),
+          DropdownMenuItem(value: 2, child: Text('Không đồng ý', overflow: TextOverflow.ellipsis)),
+        ],
         onChanged: onChanged,
       ),
     );

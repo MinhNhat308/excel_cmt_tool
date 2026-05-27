@@ -98,6 +98,7 @@ class GvEvaluationModel {
   final String attitude;
   final String achievement;
   final String limitation;
+  final String conclusion;
   final List<StudentVerdictModel> studentVerdicts;
 
   const GvEvaluationModel({
@@ -106,6 +107,7 @@ class GvEvaluationModel {
     this.attitude = '',
     this.achievement = '',
     this.limitation = '',
+    this.conclusion = '',
     this.studentVerdicts = const [],
   });
 
@@ -115,6 +117,7 @@ class GvEvaluationModel {
     String? attitude,
     String? achievement,
     String? limitation,
+    String? conclusion,
     List<StudentVerdictModel>? studentVerdicts,
   }) {
     return GvEvaluationModel(
@@ -123,6 +126,7 @@ class GvEvaluationModel {
       attitude: attitude ?? this.attitude,
       achievement: achievement ?? this.achievement,
       limitation: limitation ?? this.limitation,
+      conclusion: conclusion ?? this.conclusion,
       studentVerdicts: studentVerdicts ?? this.studentVerdicts,
     );
   }
@@ -133,6 +137,7 @@ class GvEvaluationModel {
         'attitude': attitude,
         'achievement': achievement,
         'limitation': limitation,
+        'conclusion': conclusion,
         'student_verdicts': studentVerdicts.map((e) => e.toJson()).toList(),
       };
 
@@ -144,6 +149,7 @@ class GvEvaluationModel {
       attitude: json['attitude']?.toString() ?? '',
       achievement: json['achievement']?.toString() ?? '',
       limitation: json['limitation']?.toString() ?? '',
+      conclusion: json['conclusion']?.toString() ?? '',
       studentVerdicts: list != null
           ? list.map((e) => StudentVerdictModel.fromJson(e as Map<String, dynamic>)).toList()
           : const [],
