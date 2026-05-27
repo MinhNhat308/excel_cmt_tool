@@ -1,10 +1,12 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AIService {
   static const String _prefKey = 'gemini_api_key';
   // Default API Key provided by user
-  static const String _defaultApiKey = 'AIzaSyCQmb0BX3Posw20DUn8EJoGyWs7g629XWU';
+  static String get _defaultApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   
   String? _apiKey;
 
